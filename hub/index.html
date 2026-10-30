@@ -6551,7 +6551,7 @@ function renderWork() {
   addEventListener('message', function (e) {
     var d = e.data; if (!d || d.phr !== 'live-state' || e.source !== f.contentWindow) return;
     if (d.ready) { ready = true; if (wantWake) { wantWake = false; window.PHR_LIVE.wake(); } }
-    if (d.live === true) { live = true; setStage('phro'); place(); f.style.opacity = '1'; f.style.pointerEvents = 'auto'; document.body.classList.add('phr-live'); }
+    if (d.live === true) { live = true; setStage('phro'); place(); f.style.opacity = '1'; document.body.classList.add('phr-live'); }
     if (d.live === false && live) { live = false; setTimeout(function () { if (!live) { f.style.opacity = '0'; f.style.pointerEvents = 'none'; document.body.classList.remove('phr-live'); setStage('earth'); } }, 2000); }
   });
   // Clicking Earth while he is up dismisses him: he signs off, disintegrates, and the Earth returns
@@ -6565,7 +6565,7 @@ function renderWork() {
     e.preventDefault(); e.stopPropagation(); window.PHR_LIVE.wake();
   }, true);
   var st = document.createElement('style');
-  st.textContent = 'body.phr-live #hin canvas{opacity:0!important} #bTalk{display:none!important} body.phr-live #stage .wake, body.phr-live #stage .wake-hint, body.phr-live #stage [data-wake]:not(.brand){opacity:0!important;pointer-events:none!important} #phrLive{color-scheme:dark}';
+  st.textContent = 'body.phr-live #hin canvas{opacity:0!important} #bTalk{display:none!important} body.phr-live #stage .wake, body.phr-live #stage .wake-hint, body.phr-live #stage [data-wake]:not(.brand){opacity:0!important;pointer-events:none!important} #phrLive{color-scheme:dark;pointer-events:none!important} #stage .seg, #stage .hud{position:relative;z-index:8}';
   document.head.appendChild(st);
 })();
 </script>
