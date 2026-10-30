@@ -139,7 +139,7 @@
         opened = true; wsState = 'open'; L('voice link open');
         var now = new Date();
         w.send(JSON.stringify({ type: 'conversation_initiation_client_data', dynamic_variables: {} }));
-        w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' }));
+        w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester, which counts as ' + ({ morning: 'morning', afternoon: 'afternoon', evening: 'evening', late: 'late night (not morning yet)' })[period()] + '. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' }));
         res();
       };
       w.onerror = function () { L('ws error'); if (!opened) rej(new Error('connect failed')); };
