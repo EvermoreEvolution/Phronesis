@@ -147,9 +147,22 @@
     }
   }
 
+  // ---------- PC listener (ws://127.0.0.1:8770): wakes him by name when no tab is open ----------
+  var lis = null, lisOn = false;
+  function lisSend(o) { try { if (lis && lis.readyState === 1) lis.send(JSON.stringify(o)); } catch (e) {} }
+  function lisConnect() {
+    var w; try { w = new WebSocket('ws://127.0.0.1:8770'); } catch (e) { return; }
+    w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); };
+    w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
+    w.onclose = function () { if (lis === w) { lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } setTimeout(lisConnect, 5000); };
+    w.onerror = function () {};
+  }
+  var autoWake = Q.get('wake') === '1';
+  setTimeout(lisConnect, 300);
+
   function wake(first) {
     if (live) return;
-    live = true; stopWakeWord(); body.classList.remove('dormant'); body.classList.add('live');
+    live = true; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
@@ -164,11 +177,11 @@
       .catch(function (e) { live = false; stopVoice(); setStatus('error', 'Problem'); say(e && e.name === 'NotAllowedError' ? 'I need the microphone, sir. Allow it in the browser and tap again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
   }
   function sleep(msg) {
-    live = false; sending = false; clearIdle(); stopVoice(); pendingAwake = null;
+    live = false; sending = false; clearIdle(); lisSend({ live: false }); stopVoice(); pendingAwake = null;
     if (ws) { var w = ws; ws = null; try { w.close(1000); } catch (e) {} }
     stopMic(); body.classList.remove('live', 'speaking'); body.classList.add('dormant');
     if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); say(msg || '');
-    startWakeWord();
+    if (!lisOn) startWakeWord();
   }
 
   // ---------- wake word ("Phronesis") ----------
@@ -197,7 +210,7 @@
   function imgP(src) { return new Promise(function (r) { var i = new Image(); i.onload = i.onerror = r; i.src = src; }); }
   var lmsg = $('lmsg');
   Promise.all([loadLine(greetKey()), loadLine('ready'), imgP(IMG.hero), imgP(IMG.glow), new Promise(function (r) { setTimeout(r, 600); })])
-    .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; })
+    .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; if (autoWake) { autoWake = false; $('load').classList.add('gone'); greeted = true; wake(true); } })
     .catch(function (e) { L('load ' + e.message); $('load').classList.add('ready'); lmsg.textContent = 'Ready (some sounds missing).'; });
   $('go').addEventListener('click', function () { $('load').classList.add('gone'); greeted = true; wake(true); });
 
