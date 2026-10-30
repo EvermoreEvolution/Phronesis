@@ -248,8 +248,17 @@
   // give_task: the hub around this page (the live hub) saves the task for Relay; the page alone cannot.
   function toolResult(id, result, err) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'client_tool_result', tool_call_id: id, result: result, is_error: !!err })); L('tool result: ' + result); }
   var taskWait = {};
-  window.addEventListener('message', function (e) { var d = e.data; if (d && d.phr === 'live-task-ack' && taskWait[d.id]) { taskWait[d.id](d); delete taskWait[d.id]; } });
+  window.addEventListener('message', function (e) { var d = e.data; if (d && (d.phr === 'live-task-ack' || d.phr === 'live-tool-ack') && taskWait[d.id]) { taskWait[d.id](d); delete taskWait[d.id]; } });
+  function hubTool(name, args) {   // list_waiting and approve_item are answered by the hub around this page
+    if (window.parent === window) return Promise.reject(new Error('this page is not inside the Command hub; open the hub and ask again'));
+    return new Promise(function (res, rej) {
+      var id = 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); taskWait[id] = function (d) { d.ok ? res(String(d.msg)) : rej(new Error(d.msg || 'the hub could not do it')); };
+      window.parent.postMessage({ phr: 'live-tool', id: id, name: name, args: args || {} }, '*');
+      setTimeout(function () { if (taskWait[id]) { delete taskWait[id]; rej(new Error('the hub did not answer')); } }, 8000);
+    });
+  }
   function runTool(name, p) {
+    if (name === 'list_waiting' || name === 'approve_item') return hubTool(name, p);
     if (name !== 'give_task') return Promise.reject(new Error('unknown tool ' + name));
     var task = String(p.task || '').trim(); if (!task) return Promise.reject(new Error('the task was empty'));
     if (window.parent === window) return Promise.reject(new Error('this page is not inside the Command hub, so the task could not be saved; open the hub and say it again'));

@@ -5923,11 +5923,12 @@ function saveDraftEdit(n, txt) {
 function resolveNeedLive(n, how) {
   var map = { approve: ['approved', 'Approved in the hub. Nothing was sent: no account is connected yet.'], later: ['later', 'Not now. Kept for later.'], ok: ['done', 'Noted.'], pause: ['done', 'Paused. Resume it from its Settings tab.'] };
   if (!map[how]) return;
+  if (!HUB.mcp && how === 'approve' && window.EH_QUEUE_APPROVE && String(n.id).indexOf('run:') !== 0) window.EH_QUEUE_APPROVE(n.id, 'Tapped Approve on the live hub', 'livehub');
   if (!canWrite()) { toast('This view can read the hub but not change it, sir.', 'info', 'Hub'); return; }
   var p = String(n.id).indexOf('run:') === 0 ? hubMerge('runs/' + n.ref, { ack: true, ackAt: Date.now() }) : hubMerge('needs/' + n.id, { status: map[how][0], decidedAt: Date.now(), decidedHow: how });
   n.status = map[how][0]; decided.unshift({ a: n.a, text: n.text, how: map[how][1], t: liveNowMin(), ts: Date.now() }); needs = needs.filter(function (x) { return x !== n; });
   if (how === 'pause') p = p.then(function () { return hubMerge('agents/' + n.a, { enabled: false, updatedAt: Date.now() }); });
-  if (how === 'approve' && n.kind === 'decide' && typeof giveTask === 'function') { p = p.then(function () { return giveTask('Michael answered your question (need ' + n.id + ') with yes, go ahead: "' + keep(n.text) + '". Do it now: if you offered choices, take the first one you proposed unless the hub says otherwise, and write your report.', n.a); }); toast('Approved. ' + aname(n.a) + ' is starting on it now.', 'info', aname(n.a)); }
+  if (how === 'approve' && n.kind === 'decide' && typeof giveTask === 'function' && HUB.mcp) { p = p.then(function () { return giveTask('Michael answered your question (need ' + n.id + ') with yes, go ahead: "' + keep(n.text) + '". Do it now: if you offered choices, take the first one you proposed unless the hub says otherwise, and write your report.', n.a); }); toast('Approved. ' + aname(n.a) + ' is starting on it now.', 'info', aname(n.a)); }
   else if (how === 'approve' || how === 'pause') toast(map[how][1], 'info', aname(n.a));
   p.then(function () {}, function (e) { writeFail(e, 'save that'); });
   refresh(true);
@@ -6549,6 +6550,38 @@ function renderWork() {
       return db.doc('commands/' + cid).set(rec).then(function () { return (agent === 'relay' ? 'Relay has it' : agent.charAt(0).toUpperCase() + agent.slice(1) + ' has it') + '. The team picks it up within the hour and starts on it.'; });
     });
   };
+  // approvals (taps here, or Michael's word to Phronesis after he read the draft back): saved for the pickup, which applies them in the agents' hub
+  var MONEY = /\$\s?\d|\b(spend|spending|budget|paid ads?|ad spend|purchase|buy|subscription|upgrade|invoice|pay for)\b/i;
+  window.EH_QUEUE_APPROVE = function (needId, words, via) {
+    needId = String(needId || ''); if (!/^[A-Za-z0-9_.:-]+$/.test(needId)) return Promise.reject(new Error('I could not tell which item that was.'));
+    var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.reject(new Error('Sign in to the hub first, sir.'));
+    return sb.from('docs').select('id,data').eq('coll', 'needs').eq('id', needId).maybeSingle().then(function (r) {
+      var n = r.data && r.data.data; if (!n) throw new Error('That item is not in the hub.');
+      if (n.status !== 'pending') throw new Error('That one is already ' + (n.status || 'decided') + '.');
+      if ((+n.level || 1) >= 3) throw new Error('That is a Level 3 decision, sir: it is approved in chat with Claude, never by voice.');
+      if (n.kind !== 'draft' && n.kind !== 'decide') throw new Error('That item is not something to approve.');
+      if (n.kind === 'decide' && MONEY.test(String(n.text || '') + ' ' + String(n.preview || ''))) throw new Error('That one spends or commits money, sir, so it waits for your tap on the Command page.');
+      var now = Date.now(), cid = 'a' + now.toString(36);
+      return window.claude.use('db').then(function (db) {
+        return db.doc('commands/' + cid).set({ type: 'approve', needId: needId, words: String(words || '').slice(0, 300), via: via || 'voice', agent: n.agent || 'relay', from: 'michael', createdAt: now, createdBy: 'michael', status: 'queued', bridge: 'waiting' })
+          .then(function () { return sb.rpc('doc_merge', { c: 'needs', i: needId, d: { status: 'approved', decidedAt: now, decidedHow: 'approve', decidedVia: via === 'voice' ? 'voice, read back and confirmed' : 'live hub tap' } }); })
+          .then(function () { return 'approved: ' + (n.text || needId).slice(0, 120) + '. The agents see it within the hour.'; });
+      });
+    });
+  };
+  function waitingList() {
+    var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.reject(new Error('Sign in to the hub first, sir.'));
+    return sb.from('docs').select('id,data').eq('coll', 'needs').eq('data->>status', 'pending').limit(40).then(function (r) {
+      if (r.error) throw new Error(r.error.message);
+      var L = (r.data || []).map(function (x) { var n = x.data || {}; return { id: x.id, kind: n.kind, level: n.level || 1, from: n.agent, about: String(n.text || '').slice(0, 160), draft: n.preview ? String(n.preview).slice(0, 500) : undefined, approvableByVoice: (n.kind === 'draft' || (n.kind === 'decide' && !MONEY.test(String(n.text || '') + ' ' + String(n.preview || '')))) && (+n.level || 1) < 3 }; });
+      return JSON.stringify({ waiting: L.length, items: L });
+    });
+  }
+  addEventListener('message', function (e) {
+    var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
+    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : Promise.reject(new Error('unknown tool'));
+    job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
+  });
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-task' || !f || e.source !== f.contentWindow) return;
     window.EH_QUEUE_TASK(d.task, d.agent, 'voice').then(function (m) { f.contentWindow.postMessage({ phr: 'live-task-ack', id: d.id, ok: true, msg: m }, '*'); },
