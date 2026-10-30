@@ -197,9 +197,25 @@
     recent.unshift(t); try { localStorage.setItem('phr.recentGreets', JSON.stringify(recent.slice(0, 12))); } catch (e) {}
     return { text: t, buf: HREC[set + '_' + i] };
   }
+  var FOLLOW = [["How can I help you today, sir?", "morning afternoon evening"], ["What are the skies saying about today, sir?", "morning afternoon"], ["Shall we carry on, sir?", "all"], ["What shall we tackle first, sir?", "all"], ["What's on your mind, sir?", "all"], ["Where shall we begin, sir?", "all"], ["What can I do for you, sir?", "all"], ["Shall we see what the day holds, sir?", "morning"], ["Anything I can set in motion for you, sir?", "all"], ["Shall I give you the lay of the land, sir?", "all"], ["Ready when you are, sir.", "all"], ["What does the day call for, sir?", "morning afternoon"], ["How did the day treat you, sir?", "evening"], ["What keeps you up tonight, sir?", "late"]];
+  // after a greeting that asks nothing, a short varied follow-up in the same recorded voice ("Shall we carry on, sir?")
+  var FREC = {};
+  function loadF() { FOLLOW.forEach(function (f, i) { if (FREC[i]) return;
+    fetch('voice/f/f_' + i + '.mp3?v=1').then(function (r) { return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { FREC[i] = b; }, function () {}); }); }
+  function pickFollow() {
+    var per = period(), recent = [];
+    try { recent = JSON.parse(localStorage.getItem('phr.recentFollow') || '[]'); } catch (e) {}
+    var ok = FOLLOW.map(function (f, i) { return i; }).filter(function (i) { var w = FOLLOW[i][1]; return FREC[i] && (w === 'all' || w.split(' ').indexOf(per) >= 0); });
+    var fresh = ok.filter(function (i) { return recent.indexOf(i) < 0; }); if (fresh.length) ok = fresh;
+    if (!ok.length) return null;
+    var i = ok[Math.floor(Math.random() * ok.length)];
+    recent.unshift(i); try { localStorage.setItem('phr.recentFollow', JSON.stringify(recent.slice(0, 6))); } catch (e) {}
+    return { text: FOLLOW[i][0], buf: FREC[i] };
+  }
   setTimeout(function () { loadH(period()); loadH('back'); }, 300);
+  setTimeout(loadF, 600);
   setInterval(function () { loadH(period()); }, 15 * 60000);
-  var greetLine = null, gotVoice = false;
+  var greetLine = null, followLine = null, gotVoice = false;
   function connect() {
     return new Promise(function (res, rej) {
       var w = new WebSocket(WS_URL); ws = w; var opened = false; wsState = 'connecting';
@@ -208,7 +224,7 @@
         opened = true; wsState = 'open'; L('voice link open');
         var now = new Date();
         w.send(JSON.stringify(greetLine ? { type: 'conversation_initiation_client_data', dynamic_variables: {}, conversation_config_override: { agent: { first_message: greetLine } } } : { type: 'conversation_initiation_client_data', dynamic_variables: {} }));
-        w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester, which counts as ' + ({ morning: 'morning', afternoon: 'afternoon', evening: 'evening', late: 'late night (not morning yet)' })[period()] + '. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' }));
+        w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester, which counts as ' + ({ morning: 'morning', afternoon: 'afternoon', evening: 'evening', late: 'late night (not morning yet)' })[period()] + '. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' + (followLine ? ' You also just asked him: "' + followLine + '" Wait for his answer and carry on from it; do not ask it again.' : '') }));
         res();
       };
       w.onerror = function () { L('ws error'); if (!opened) rej(new Error('connect failed')); };
@@ -347,6 +363,8 @@
     say(g.text);
     L('greeting ' + (g.buf ? 'playing' : 'not loaded yet') + ' (' + Math.round(performance.now()) + ' ms)');
     if (g.buf) playBuffer(g.buf, 1);    // instant: he greets while he forms and while the live voice connects
+    followLine = null;
+    if (first && g.buf && g.text.indexOf('?') < 0) { var fu = pickFollow(); if (fu) { followLine = fu.text; nextT += 0.22; playBuffer(fu.buf, 1); say(g.text + ' ' + fu.text); L('follow-up: ' + fu.text); } }
     var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () { setTimeout(function () { prepNext().catch(function () {}); }, 4000); };
     if (head) head.wake(); else pendingAwake();
