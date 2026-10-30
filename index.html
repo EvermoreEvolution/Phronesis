@@ -87,11 +87,11 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 <script src="globe.js?v=1793342314"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
-  import { createHead3D } from './3d/head3d.js?v=1793344800';
+  import { createHead3D } from './3d/head3d.js?v=1793345019';
   const q = new URLSearchParams(location.search);
   window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
   window.PHR3D.catch(() => {});
-  const s = document.createElement('script'); s.src = 'app.js?v=1793344800'; document.body.appendChild(s);
+  const s = document.createElement('script'); s.src = 'app.js?v=1793345019'; document.body.appendChild(s);
 </script>
 </body>
 </html>

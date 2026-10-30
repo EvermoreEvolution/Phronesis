@@ -270,7 +270,7 @@
     var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () {
       var b = REC[line];
-      Promise.race([faceP, new Promise(function (r) { setTimeout(function () { r(false); }, 7000); })]).then(function () {
+      Promise.race([faceP, new Promise(function (r) { setTimeout(function () { r(false); }, 900); })]).then(function () {
         if (!live) return;
         if (b) { say(lineText(line)); if (AV.on) faceBuffer(b); else playBuffer(b, 1); } else onVoiceDone();
       });

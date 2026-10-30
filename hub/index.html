@@ -6539,7 +6539,7 @@ function renderWork() {
   var Q = new URLSearchParams(location.search), ready = false, live = false, wantWake = Q.get('wake') === '1';
   var f = document.createElement('iframe');
   f.id = 'phrLive'; f.title = 'Phronesis'; f.allow = 'microphone; autoplay'; f.setAttribute('allowtransparency', 'true');
-  f.src = '../?embed=1' + (Q.get('face') === 'video' ? '' : '&face=off') + '&v=' + Date.now();
+  f.src = '../?embed=1' + (Q.get('face') === '3d' ? '&face=off' : '') + '&v=' + Date.now();
   f.style.cssText = 'position:absolute;border:0;background:transparent;z-index:6;opacity:0;transition:opacity .9s ease;pointer-events:none';
   stage.appendChild(f);
   function place() { var s = stage.getBoundingClientRect(), r = hw.getBoundingClientRect(); var w = r.width || s.width * .76, h = r.height || s.height;

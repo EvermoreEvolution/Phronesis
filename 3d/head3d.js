@@ -152,7 +152,7 @@ export async function createHead3D(canvas, opts = {}) {
     awakeAnim = setInterval(() => { const u = Math.min(1, (performance.now() - st) / (ms || 1800)); U.uAwake.value = from * (1 - u * u * (3 - 2 * u));
       if (u >= 1) { clearInterval(awakeAnim); awakeAnim = null; api.state = 'dormant'; if (cb) cb(); } }, 30); };
   api.wake = () => { api.state = 'activating'; U.uAwake.value = 0; const st = performance.now();
-    awakeAnim = setInterval(() => { const u = Math.min(1, (performance.now() - st) / 2200); U.uAwake.value = u * u * (3 - 2 * u);
+    awakeAnim = setInterval(() => { const u = Math.min(1, (performance.now() - st) / 1100); U.uAwake.value = u * u * (3 - 2 * u);
       if (u >= 1) { clearInterval(awakeAnim); awakeAnim = null; api.state = 'listening'; if (api.onAwake) api.onAwake(); } }, 30); };
   return api;
 }
