@@ -6036,7 +6036,7 @@ function rebuildLive() {
   Object.keys(HUBX.needs).forEach(function (id) {
     var n = HUBX.needs[id]; if (!n || !A[n.agent]) return;
     var cr = toMs(n.createdAt), stt = n.status || 'pending';
-    if (stt === 'pending') nd.push({ id: id, a: n.agent, text: keep(n.text), level: +n.level || 1, kind: n.kind || 'info', prev: n.preview || '', status: 'pending', t: minOfDay(cr), ts: cr, tag: n.tag || '', acts: n.acts || null, unit: n.unit || '', open: !!OPEN[id], editing: !!EDITING[id], edited: !!n.editedBy, lead: n.lead || '', email: (n.lead && HUBX.leads && HUBX.leads[n.lead] && HUBX.leads[n.lead].email) || n.email || '', gmail: n.gmailDraftId || '' });
+    if (stt === 'pending') nd.push({ id: id, a: n.agent, text: keep(n.text), level: +n.level || 1, kind: n.kind || 'info', prev: n.preview || '', status: 'pending', t: minOfDay(cr), ts: cr, tag: n.tag || '', acts: n.acts || null, unit: n.unit || '', open: !!OPEN[id], editing: !!EDITING[id], edited: !!n.editedBy, lead: n.lead || '', email: n.email || (n.lead && HUBX.leads && HUBX.leads[n.lead] && HUBX.leads[n.lead].email) || '', subject: n.subject || '', channel: n.channel || '', gmail: n.gmailDraftId || '' });
     else { var da = toMs(n.decidedAt); if (da >= d0) dec.push({ a: n.agent, text: keep(n.text), how: HOW[n.decidedHow] || n.decidedHow || 'Decided.', t: minOfDay(da), ts: da }); }
   });
   nr.forEach(function (r) { if (r.out === 'problem' && !r.queued) nd.push({ id: 'run:' + r.id, a: r.a, text: A[r.a].name + ': ' + r.text, level: 1, kind: 'problem', prev: '', status: 'pending', t: minOfDay(r.ts), ts: r.ts, tag: 'problem', acts: null, ref: r.id, unit: '' }); });
@@ -6106,9 +6106,9 @@ function writeFail(e, what) { var c = e && (e.code || e.message) || 'error'; toa
 function gmailDraft(n) {
   if (!HUB.mcp) { toast('Gmail is not reachable from this view, sir. Open the page in Claude as its owner.', 'info', 'Hub'); return; }
   var lead = (HUBX.leads || {})[n.lead] || {}, biz = keep(lead.business) || 'your business';
-  var body = keep(n.prev) + '\n\nMichael Evermore\nEvermore Evolution, Worcester MA\n(540) 762-5737';
+  var pv = keep(n.prev), body = /Michael Evermore\s*\n[^\n]*Evermore Evolution/.test(pv) ? pv : pv + '\n\nMichael Evermore\nEvermore Evolution, Worcester MA\n(540) 762-5737';
   toast('Saving to your Gmail drafts…', 'info', aname(n.a));
-  HUB.mcp.callTool('Gmail', 'create_draft', { to: [n.email], subject: 'Quick idea for ' + biz, body: body }).then(function (r) {
+  HUB.mcp.callTool('Gmail', 'create_draft', { to: [n.email], subject: keep(n.subject) || ('A website idea for ' + biz), body: body }).then(function (r) {
     var pl = r && (r.payload || r), id = pl && (pl.id || (pl.draft && pl.draft.id)) || 'ok';
     hubMerge('needs/' + n.id, { gmailDraftId: String(id), gmailDraftAt: Date.now() }).catch(function () {});
     n.gmail = String(id); refresh(true); toast('Saved. It is in your Gmail drafts, unsent, for you to send.', 'info', aname(n.a));
