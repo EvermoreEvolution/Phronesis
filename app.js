@@ -21,6 +21,10 @@
   try { globe = window.PhrGlobe({ cv: $('gl'), lab: $('lab'), landBits: window.LAND, agents: [], onPick: function () {}, onHover: function () {} }); } catch (e) { L('globe ' + e.message); }
   try { head = window.PhrHead({ cv: $('hd'), fx: $('fx'), imgs: IMG, audio: {}, tracks: {}, onAwake: function () { if (pendingAwake) { var f = pendingAwake; pendingAwake = null; f(); } } }); } catch (e) { L('head ' + e.message); }
   if (head && head.setState) head.snap('dormant');
+  if (window.PHR3D) window.PHR3D.then(function (h3) {
+    var st = head && head.state; head = h3; head.onAwake = function () { if (pendingAwake) { var f = pendingAwake; pendingAwake = null; f(); } };
+    head.mouth(mouth); head.setState(st || 'dormant'); body.classList.add('h3'); L('3D head ready');
+  }, function (e) { L('3D head off: ' + (e && e.message)); });
 
   function setStatus(s, text) { chip.dataset.s = s; st.textContent = text; body.classList.toggle('speaking', s === 'speaking'); }
   function say(text, you) { cap.innerHTML = ''; if (you) { var y = document.createElement('span'); y.className = 'you'; y.textContent = 'You: ' + you; cap.appendChild(y); } if (text) cap.appendChild(document.createTextNode(text)); }
@@ -129,7 +133,7 @@
   // ---------- conversation ----------
   var ws = null, live = false, sending = false, convId = null, idleT = null, pendingAwake = null, greeted = false;
   function clearIdle() { if (idleT) { clearTimeout(idleT); idleT = null; } }
-  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello Phronesis" or tap when you need me.'); } }, IDLE_MS); }
+  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); } }, IDLE_MS); }
 
   function connect() {
     return new Promise(function (res, rej) {
@@ -233,7 +237,7 @@
 
   // ---------- controls ----------
   mic.addEventListener('click', function () {
-    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Say "Hello Phronesis" or tap when you need me.'); }
+    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); }
     else wake(!greeted && (greeted = true));
   });
   document.addEventListener('visibilitychange', function () { if (document.hidden && live) sleep(''); });

@@ -12,10 +12,13 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
 #stage{position:fixed;inset:0}
-#gl,#hd,#fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+#gl,#hd,#fx,#hd3{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gl{transition:opacity 1.4s ease}
 #hd,#fx{transition:opacity 1.2s ease}
-body.dormant #hd,body.dormant #fx{opacity:0}
+body.dormant #hd,body.dormant #fx,body.dormant #hd3{opacity:0}
+#hd3{transition:opacity 1.2s ease}
+body.h3 #hd,body.h3 #fx{display:none}
+body:not(.h3) #hd3{display:none}
 body:not(.dormant) #gl{opacity:0;pointer-events:none}
 #lab{position:absolute;inset:0;pointer-events:none}
 header{position:fixed;top:0;left:0;right:0;padding:calc(14px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 0 max(18px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:center;z-index:5}
@@ -48,7 +51,7 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 </style>
 </head>
 <body class="dormant">
-<div id="stage"><canvas id="gl"></canvas><canvas id="lab"></canvas><canvas id="hd"></canvas><canvas id="fx"></canvas></div>
+<div id="stage"><canvas id="gl"></canvas><canvas id="lab"></canvas><canvas id="hd"></canvas><canvas id="fx"></canvas><canvas id="hd3"></canvas></div>
 <header><div class="mark">Phronesis</div><div class="chip" id="chip" data-s="dormant"><span class="dot"></span><span id="st">Dormant</span></div></header>
 <footer>
   <div id="cap"></div>
@@ -61,6 +64,13 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 <script src="head_shaders.js"></script>
 <script src="head_core.js"></script>
 <script src="globe.js"></script>
-<script src="app.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+  import { createHead3D } from './3d/head3d.js';
+  const q = new URLSearchParams(location.search);
+  window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
+  window.PHR3D.catch(() => {});
+  const s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
+</script>
 </body>
 </html>
