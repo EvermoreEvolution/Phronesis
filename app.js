@@ -148,13 +148,13 @@
   }
 
   // ---------- PC listener (ws://127.0.0.1:8770): wakes him by name when no tab is open ----------
-  var lis = null, lisOn = false;
+  var lis = null, lisOn = false, lisWait = 3000;
   function lisSend(o) { try { if (lis && lis.readyState === 1) lis.send(JSON.stringify(o)); } catch (e) {} }
   function lisConnect() {
     var w; try { w = new WebSocket('ws://127.0.0.1:8770'); } catch (e) { return; }
     w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); };
     w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
-    w.onclose = function () { if (lis === w) { lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } setTimeout(lisConnect, 5000); };
+    w.onclose = function () { if (lis === w) { lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } lisWait = lisOn || lis ? 3000 : Math.min(30000, lisWait * 1.6); setTimeout(lisConnect, lisWait); };
     w.onerror = function () {};
   }
   var autoWake = Q.get('wake') === '1';
