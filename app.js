@@ -66,7 +66,7 @@
     var t = Math.max(ctx.currentTime + 0.04, nextT); src.start(t); nextT = t + buf.duration / (rate || 1);
     track(src); speakingNow();
   }
-  function stopVoice() { playing.slice().forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} }); playing = []; nextT = 0; }
+  function stopVoice() { AV.end = 0; playing.slice().forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} }); playing = []; nextT = 0; }
   function speakingNow() { if (head && head.state !== 'speaking') head.say(-1, true); setStatus('speaking', 'Speaking'); clearIdle(); }
   var dismissing = false;
   var restT = null, saidBye = false;
@@ -75,7 +75,7 @@
     restT = setTimeout(function () {
       if (playing.length || !live) return;
       if (!saidBye) {   // he closed without a word: say a sign-off in his recorded voice first
-        saidBye = true; var b = REC[NEXT.bye]; L('recorded sign-off'); if (b) { say(lineText(NEXT.bye)); playBuffer(b, 1); return; }
+        saidBye = true; var b = REC[NEXT.bye]; L('recorded sign-off'); if (b) { say(lineText(NEXT.bye)); if (AV.on) faceBuffer(b); else playBuffer(b, 1); return; }
       }
       dismissing = false; saidBye = false;
       sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true);
@@ -172,7 +172,7 @@
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
-        var a = d.audio_event || {}; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); break;
+        var a = d.audio_event || {}; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
       case 'agent_response':
         say((d.agent_response_event || {}).agent_response || ''); break;
       case 'agent_response_correction':
@@ -183,10 +183,54 @@
           if (/\b(that'?s all|that is all|that is it|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
         break;
       case 'interruption':
-        L('interrupted'); stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
+        L('interrupted'); if (AV.on) { try { AV.client.interruptPersona(); AV.inp.endSequence(); } catch (e) {} } stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
       case 'ping':
         var p = d.ping_event || {}; setTimeout(function () { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong', event_id: p.event_id })); }, p.ping_ms || 0); break;
     }
+  }
+
+  // ---------- live face (Anam): a realistic talking face, lip-synced to his voice ----------
+  // The PC listener mints a short-lived session token (the Anam key never touches this page).
+  // If there is no listener, no token or no minutes left, the 3D head stays.
+  var AV = { on: false, client: null, inp: null, end: 0, endT: null, tok: {} };
+  var ANAM_SDK = 'https://cdn.jsdelivr.net/npm/@anam-ai/js-sdk@4.27.1/+esm';
+  function anamToken() {
+    return new Promise(function (res, rej) {
+      if (!lisOn) return rej(new Error('no PC listener'));
+      var id = 't' + Date.now(); AV.tok[id] = { res: res, rej: rej }; lisSend({ cmd: 'anamToken', id: id });
+      setTimeout(function () { if (AV.tok[id]) { delete AV.tok[id]; rej(new Error('token timeout')); } }, 9000);
+    });
+  }
+  function startFace() {
+    if (Q.get('face') === 'off') return Promise.reject(new Error('face off'));
+    return anamToken().then(function (tok) { return import(ANAM_SDK).then(function (m) {
+      var c = m.createClient(tok, { disableInputAudio: true });
+      return Promise.resolve(c.streamToVideoElement('av')).then(function () {
+        AV.client = c; AV.inp = c.createAgentAudioInputStream({ encoding: 'pcm_s16le', sampleRate: 44100, channels: 1 });
+        AV.on = true; body.classList.add('face'); L('live face on');
+      });
+    }); }).catch(function (e) { L('live face off: ' + (e && e.message)); throw e; });
+  }
+  function stopFace() {
+    var c = AV.client; AV.on = false; AV.client = null; AV.inp = null; AV.end = 0;
+    if (c) setTimeout(function () { try { c.stopStreaming(); } catch (e) {} }, 50);
+  }
+  function faceAudio(b64, bytes) {   // send to the face and keep the page's 'speaking' state in step
+    try { AV.inp.sendAudioChunk(b64); } catch (e) { L('face audio ' + e.message); }
+    var now = performance.now() / 1000, dur = bytes / 2 / 44100, start = Math.max(now + 0.35, AV.end); AV.end = start + dur;
+    var tok = { stop: function () {}, onended: null }; playing.push(tok); speakingNow();
+    setTimeout(function () { var i = playing.indexOf(tok); if (i >= 0) { playing.splice(i, 1); if (!playing.length) onVoiceDone(); } }, (AV.end - now) * 1000);
+    clearTimeout(AV.endT); AV.endT = setTimeout(function () { try { AV.inp && AV.inp.endSequence(); } catch (e) {} }, 700);
+  }
+  function faceBuffer(buf) {   // a recorded line, resampled to 44.1 kHz and sent in quarter-second pieces
+    var n = Math.ceil(buf.duration * 44100), oc = new OfflineAudioContext(1, n, 44100), src = oc.createBufferSource();
+    src.buffer = buf; src.connect(oc.destination); src.start();
+    return oc.startRendering().then(function (r) {
+      var f = r.getChannelData(0), pcm = new Int16Array(f.length);
+      for (var i = 0; i < f.length; i++) { var v = Math.max(-1, Math.min(1, f[i])); pcm[i] = v < 0 ? v * 32768 : v * 32767; }
+      var u8 = new Uint8Array(pcm.buffer), step = 22050;
+      for (var k = 0; k < u8.length; k += step) { var part = u8.subarray(k, Math.min(u8.length, k + step)); faceAudio(bytesToB64(part), part.length); }
+    });
   }
 
   // ---------- PC listener (ws://127.0.0.1:8770): wakes him by name when no tab is open ----------
@@ -195,7 +239,7 @@
   function lisConnect() {
     var w; try { w = new WebSocket('ws://127.0.0.1:8770'); } catch (e) { return; }
     w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); };
-    w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
+    w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.id && AV.tok[d.id]) { var t = AV.tok[d.id]; delete AV.tok[d.id]; if (d.anamToken) t.res(d.anamToken); else t.rej(new Error(d.anamError || 'no token')); return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
     w.onclose = function () { if (lis === w) { lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } lisWait = lisOn || lis ? 3000 : Math.min(30000, lisWait * 1.6); setTimeout(lisConnect, lisWait); };
     w.onerror = function () {};
   }
@@ -210,9 +254,13 @@
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
     var line = first ? NEXT.greet : NEXT.back;
+    var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () {
       var b = REC[line];
-      if (b) { say(lineText(line)); playBuffer(b, 1); } else onVoiceDone();
+      Promise.race([faceP, new Promise(function (r) { setTimeout(function () { r(false); }, 7000); })]).then(function () {
+        if (!live) return;
+        if (b) { say(lineText(line)); if (AV.on) faceBuffer(b); else playBuffer(b, 1); } else onVoiceDone();
+      });
       setTimeout(function () { prepNext().catch(function () {}); }, 4000);   // a fresh line ready for next time
     };
     if (head) head.wake(); else pendingAwake();
@@ -223,8 +271,10 @@
     live = false; sending = false; clearIdle(); lisSend({ live: false }); stopVoice(); pendingAwake = null;
     if (ws) { var w = ws; ws = null; try { w.close(1000); } catch (e) {} }
     stopMic(); body.classList.remove('live', 'speaking'); setStatus('dormant', 'Resting'); say(msg || '');
-    var done = function () { if (live) return; body.classList.add('dormant'); if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); };
-    if (dissolve && head && head.dissolve) head.dissolve(1800, done); else done();
+    var done = function () { if (live) return; stopFace(); body.classList.remove('face'); body.classList.add('dormant'); if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); };
+    if (AV.on) body.classList.add('faceout');
+    var done0 = done; done = function () { body.classList.remove('faceout'); done0(); };
+    if (dissolve && (AV.on || (head && head.dissolve))) { if (head && head.dissolve && !AV.on) head.dissolve(1800, done); else setTimeout(done, 1800); } else done();
     if (!lisOn) startWakeWord();
   }
 
