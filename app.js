@@ -192,7 +192,7 @@
     };
     if (head) head.wake(); else pendingAwake();
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
-      .catch(function (e) { live = false; stopVoice(); setStatus('error', 'Problem'); say(e && e.name === 'NotAllowedError' ? 'I need the microphone, sir. Allow it in the browser and tap again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
+      .catch(function (e) { L('wake failed: ' + (e && (e.name + ' ' + e.message))); live = false; sending = false; pendingAwake = null; clearTimeout(hintT); stopVoice(); if (head) head.setState('dormant'); lisSend({ live: false }); setStatus('error', 'Problem'); say(micState === 'denied' ? 'The microphone is blocked for this page, sir. Click the lock icon by the address, allow the microphone, then tap me again.' : micState !== 'on' ? 'I could not open the microphone, sir. Check that one is plugged in and not used by another app, then tap me again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
   }
   function sleep(msg) {
     live = false; sending = false; clearIdle(); lisSend({ live: false }); stopVoice(); pendingAwake = null;
