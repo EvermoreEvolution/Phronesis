@@ -74,17 +74,17 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 </footer>
 <div id="load"><div class="in"><div class="ring"></div><div class="mark">Phronesis</div><div class="hint" id="lmsg">Preparing his voice…</div><button id="go">Wake Phronesis</button></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="land.js"></script>
-<script src="head_shaders.js"></script>
-<script src="head_core.js"></script>
-<script src="globe.js"></script>
+<script src="land.js?v=1793342314"></script>
+<script src="head_shaders.js?v=1793342314"></script>
+<script src="head_core.js?v=1793342314"></script>
+<script src="globe.js?v=1793342314"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
-  import { createHead3D } from './3d/head3d.js';
+  import { createHead3D } from './3d/head3d.js?v=1793342314';
   const q = new URLSearchParams(location.search);
   window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
   window.PHR3D.catch(() => {});
-  const s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
+  const s = document.createElement('script'); s.src = 'app.js?v=1793342314'; document.body.appendChild(s);
 </script>
 </body>
 </html>

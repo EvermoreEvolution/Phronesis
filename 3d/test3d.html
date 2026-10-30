@@ -5,6 +5,6 @@
 import { createHead3D } from './head3d.js';
 const q=new URLSearchParams(location.search);
 const h=await createHead3D(document.getElementById('c'),{holo:+(q.get('holo')||0.65), frame:q.get('frame')||'bust'});
-h.state='speaking'; const j=+(q.get('jaw')||0); h.mouth=()=>[j,0.2];
+h.state='speaking'; const j=+(q.get('jaw')||0); h.mouthFn=()=>[j,0.2]; if(q.get('aw')) h.U.uAwake.value=+q.get('aw');
 setTimeout(()=>{window.DONE=1},1500);
 </script></body></html>

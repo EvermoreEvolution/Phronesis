@@ -19,7 +19,7 @@ void main(){
   float below = 1.0 - smoothstep(MY - 0.026, MY - 0.002, p.y);
   float neck = smoothstep(CY - 0.075, CY - 0.02, p.y);
   float wj = below * neck * front * side;
-  float ang = uJaw * 0.20;
+  float ang = uJaw * 0.12;   // a gentle jaw: speech, not a yawn
   vec3 piv = vec3(CX, MY + 0.05, -0.06);
   vec3 q = p - piv; float c = cos(ang), s = sin(ang);
   vec3 r = vec3(q.x, q.y * c - q.z * s, q.y * s + q.z * c) + piv;
@@ -59,7 +59,7 @@ void main(){
   vec3 on = normalize(cross(dFdx(vPos), dFdy(vPos)));
   float wf = pow(max(on.z, 0.0), 3.0), wb = pow(max(-on.z, 0.0), 3.0), ws = pow(abs(on.x), 3.0) * 1.2;
   vec3 col = (texture2D(tF, uvF(vPos)).rgb * wf + texture2D(tS, uvS(vPos)).rgb * ws + texture2D(tB, uvB(vPos)).rgb * wb) / max(wf + wb + ws, 1e-3);
-  col = mix(col, vec3(0.06, 0.03, 0.03), clamp(vSeam * 1.6, 0.0, 0.92));
+  col = mix(col, vec3(0.10, 0.05, 0.05), clamp(vSeam * 1.1, 0.0, 0.7));
   // light: soft key from the front-left
   float lit = 0.75 + 0.35 * max(dot(n, normalize(vec3(-0.3, 0.4, 1.0))), 0.0);
   vec3 real = col * lit;
@@ -83,7 +83,13 @@ void main(){
   vec3 outc = mix(real, holo, uHolo);
   float fade = smoothstep(-0.98, -0.55, vPos.y);   // the bust dissolves into light at the base
   outc += uTint * (1.0 - fade) * 0.35;
-  gl_FragColor = vec4(outc * (0.25 + 0.75 * uAwake), fade * uAwake);
+  // materialise from nothing / disintegrate: tiny cells switch on (or off) with a glowing edge
+  float nz = fract(sin(dot(floor(vPos * 95.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  float th = uAwake * 1.15 - 0.075;
+  if (nz > th) discard;
+  float edge = (1.0 - smoothstep(0.0, 0.09, th - nz)) * (1.0 - step(0.999, uAwake));
+  outc += uTint * edge * 2.6;
+  gl_FragColor = vec4(outc, fade);
   if (gl_FragColor.a < 0.01) discard;
 }`;
 
@@ -95,7 +101,7 @@ export async function createHead3D(canvas, opts = {}) {
   const cam = new THREE.PerspectiveCamera(24, 1, 0.05, 20);
   const tl = new THREE.TextureLoader();
   const [gltf, tF, tS, tB, tSuit] = await Promise.all([
-    new GLTFLoader().loadAsync(base + 'head.glb'),
+    new GLTFLoader().loadAsync(opts.glb || (base + 'head.glb')),
     tl.loadAsync(base + 'front.jpg'), tl.loadAsync(base + 'side.jpg'), tl.loadAsync(base + 'back.jpg'), tl.loadAsync(base + 'suit.jpg')]);
   [tF, tS, tB, tSuit].forEach(t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; });
   const U = { tSuit: { value: tSuit }, tF: { value: tF }, tS: { value: tS }, tB: { value: tB }, uJaw: { value: 0 }, uWide: { value: 0 }, uTime: { value: 0 },
