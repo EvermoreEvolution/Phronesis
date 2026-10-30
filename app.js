@@ -7,7 +7,7 @@
   var WS_URL = 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=' + AGENT_ID;
   var IDLE_MS = +(Q.get('idle') || 10000);       // silence before he stops listening
   var DEEP = +(Q.get('deep') || 1);              // playback rate for live voice (0.95 = lower, slower)
-  var GREET = {"morning": ["Good morning, Mr. Evermore. Top of the morning to you, sir.", "Good morning, sir. I trust you slept well. The team has been busy.", "Top of the morning, sir. Shall we see what the night brought in?", "Morning, Mr. Evermore. A splendid day ahead, I should think.", "Good morning, sir. How does it go?"], "afternoon": ["Good afternoon, Mr. Evermore. How does it go, sir?", "Good day, sir. A splendid afternoon so far.", "Afternoon, Mr. Evermore. What can I do for you?", "Good afternoon, sir. All is in order. Where shall we begin?", "Good day to you, sir. How are things on your end?"], "evening": ["Good evening, Mr. Evermore. A full day behind us.", "Evening, sir. How did the day treat you?", "Good evening, sir. Splendid to hear from you.", "Good evening, Mr. Evermore. What's on your mind tonight?", "Ah, good evening, sir. At your service."], "late": ["Burning the midnight oil, sir? I'm right here.", "Good evening, Mr. Evermore. Still at it, I see.", "A late one tonight, sir. What can I do for you?", "At your service, sir, whatever the hour."], "back": ["Yes, sir?", "At your service, sir.", "I'm here, sir.", "Go ahead, sir.", "Back again, sir. What do you need?"]};   // recorded in Adam deeper, Oct 30
+  var GREET = {"morning": ["Good morning, Mr. Evermore. Top of the morning to you, sir.", "Good morning, sir. I trust you slept well. The team has been busy.", "Top of the morning, sir. Shall we see what the night brought in?", "Morning, Mr. Evermore. A splendid day ahead, I should think.", "Good morning, sir. How does it go?"], "afternoon": ["Good afternoon, Mr. Evermore. How does it go, sir?", "Good day, sir. A splendid afternoon so far.", "Afternoon, Mr. Evermore. What can I do for you?", "Good afternoon, sir. All is in order. Where shall we begin?", "Good day to you, sir. How are things on your end?"], "evening": ["Good evening, Mr. Evermore. A full day behind us.", "Evening, sir. How did the day treat you?", "Good evening, sir. Splendid to hear from you.", "Good evening, Mr. Evermore. What's on your mind tonight?", "Ah, good evening, sir. At your service."], "late": ["Burning the midnight oil, sir? I'm right here.", "Good evening, Mr. Evermore. Still at it, I see.", "A late one tonight, sir. What can I do for you?", "At your service, sir, whatever the hour."], "back": ["Yes, sir?", "At your service, sir.", "I'm here, sir.", "Go ahead, sir.", "Back again, sir. What do you need?"], "bye": ["Right you are, sir.", "Very well, sir.", "Very good, sir. At your leisure.", "As you wish, sir. Rest well.", "Splendid. I'll be right here, sir."]};   // recorded in Adam deeper, Oct 30
 
   function $(id) { return document.getElementById(id); }
   var body = document.body, cap = $('cap'), chip = $('chip'), st = $('st'), mic = $('mic'), hint = $('hint');
@@ -69,8 +69,18 @@
   function stopVoice() { playing.slice().forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} }); playing = []; nextT = 0; }
   function speakingNow() { if (head && head.state !== 'speaking') head.say(-1, true); setStatus('speaking', 'Speaking'); clearIdle(); }
   var dismissing = false;
-  var restT = null;
-  function restAfterVoice() { clearTimeout(restT); restT = setTimeout(function () { if (playing.length || !live) return; dismissing = false; sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); }, 1100); }
+  var restT = null, saidBye = false;
+  function restAfterVoice() {
+    clearTimeout(restT);
+    restT = setTimeout(function () {
+      if (playing.length || !live) return;
+      if (!saidBye) {   // he closed without a word: say a sign-off in his recorded voice first
+        saidBye = true; var b = REC[NEXT.bye]; L('recorded sign-off'); if (b) { say(lineText(NEXT.bye)); playBuffer(b, 1); return; }
+      }
+      dismissing = false; saidBye = false;
+      sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true);
+    }, 1100);
+  }
   function onVoiceDone() {
     if (!live) return;
     if (dismissing) { restAfterVoice(); return; } if (head) head.setState('listening');
@@ -107,8 +117,8 @@
     return k;
   }
   function lineText(k) { var m = /^(\w+)_(\d+)$/.exec(k); return m ? GREET[m[1]][+m[2]] : ''; }
-  var NEXT = { greet: null, back: null };
-  function prepNext() { NEXT.greet = pickLine(period()); NEXT.back = pickLine('back'); return Promise.all([loadLine(NEXT.greet), loadLine(NEXT.back)]); }
+  var NEXT = { greet: null, back: null, bye: null };
+  function prepNext() { NEXT.greet = pickLine(period()); NEXT.back = pickLine('back'); NEXT.bye = pickLine('bye'); return Promise.all([loadLine(NEXT.greet), loadLine(NEXT.back), loadLine(NEXT.bye)]); }
 
   // ---------- microphone ----------
   var stream = null, micNode = null, micSrc = null, micLevel = 0;
@@ -137,7 +147,7 @@
   // ---------- conversation ----------
   var ws = null, live = false, sending = false, convId = null, idleT = null, pendingAwake = null, greeted = false;
   function clearIdle() { if (idleT) { clearTimeout(idleT); idleT = null; } }
-  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); } }, IDLE_MS); }
+  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); } }, IDLE_MS); }
 
   function connect() {
     return new Promise(function (res, rej) {
@@ -162,7 +172,7 @@
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
-        var a = d.audio_event || {}; if (a.audio_base_64) playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); break;
+        var a = d.audio_event || {}; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); break;
       case 'agent_response':
         say((d.agent_response_event || {}).agent_response || ''); break;
       case 'agent_response_correction':
@@ -170,7 +180,7 @@
       case 'user_transcript':
         var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u);
         if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle();
-          if (/\b(that'?s all|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 9000); } }
+          if (/\b(that'?s all|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
         break;
       case 'interruption':
         L('interrupted'); stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
@@ -194,7 +204,7 @@
 
   function wake(first) {
     if (live) return;
-    live = true; dismissing = false; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
+    live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
@@ -209,11 +219,12 @@
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
       .catch(function (e) { L('wake failed: ' + (e && (e.name + ' ' + e.message))); live = false; sending = false; pendingAwake = null; clearTimeout(hintT); stopVoice(); if (head) head.setState('dormant'); lisSend({ live: false }); setStatus('error', 'Problem'); say(micState === 'denied' ? 'The microphone is blocked for this page, sir. Click the lock icon by the address, allow the microphone, then tap me again.' : micState !== 'on' ? 'I could not open the microphone, sir. Check that one is plugged in and not used by another app, then tap me again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
   }
-  function sleep(msg) {
+  function sleep(msg, dissolve) {
     live = false; sending = false; clearIdle(); lisSend({ live: false }); stopVoice(); pendingAwake = null;
     if (ws) { var w = ws; ws = null; try { w.close(1000); } catch (e) {} }
-    stopMic(); body.classList.remove('live', 'speaking'); body.classList.add('dormant');
-    if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); say(msg || '');
+    stopMic(); body.classList.remove('live', 'speaking'); setStatus('dormant', 'Resting'); say(msg || '');
+    var done = function () { if (live) return; body.classList.add('dormant'); if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); };
+    if (dissolve && head && head.dissolve) head.dissolve(1800, done); else done();
     if (!lisOn) startWakeWord();
   }
 
@@ -242,10 +253,10 @@
 
   // ---------- controls ----------
   mic.addEventListener('click', function () {
-    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); }
+    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); }
     else wake(!greeted && (greeted = true));
   });
-  document.addEventListener('visibilitychange', function () { if (document.hidden && live) sleep(''); });
+  var hidT = null; document.addEventListener('visibilitychange', function () { clearTimeout(hidT); if (document.hidden && live) hidT = setTimeout(function () { if (document.hidden && live && !playing.length) sleep('', false); }, 60000); });
 
   // ---------- load everything before the first word ----------
   function imgP(src) { return new Promise(function (r) { var i = new Image(); i.onload = i.onerror = r; i.src = src; }); }
