@@ -640,6 +640,8 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 .h3on #hd, .h3on #fx { opacity: 0 !important; }
 .wc .osum { margin: 0 0 8px; color: var(--ink, #e8eef8); line-height: 1.5; } .wc .onext { margin: 0 0 8px; color: #ffcf86; } .wc .olinks { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 8px; } .wc .cthumb { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; margin: 0 0 10px; object-fit: contain; background: rgba(255,255,255,.04); } .wc .acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
 
+.wc .agrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 0 0 10px; } .wc .abox { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; background: rgba(255,255,255,.02); } .wc .abox > b { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold, #e4be7b); } .wc .abox > span { color: var(--mute, #8796ad); font-size: 13px; } .wc .ascript { margin: 0; white-space: pre-wrap; line-height: 1.5; } .wc .ainfo { margin: 0 0 8px; color: var(--mute, #8796ad); font-size: 13px; }
+
 </style>
 <div id="app" data-view="command">
   <aside class="nav panel" aria-label="Main navigation">
@@ -6446,7 +6448,7 @@ function postWorldLive(force) {
 
 /* ---------- WORK: every record the agents have written, in tabs, live from the hub ---------- */
 var workTab = 'leads', workQ = '', workOpen = {};
-var WTABS = [['leads', 'Leads'], ['websites', 'Websites'], ['creations', 'Creations'], ['content', 'Content'], ['opps', 'Opportunities'], ['clients', 'Clients'], ['money', 'Money'], ['tasks', 'Tasks'], ['runs', 'Runs'], ['needs', 'Needs']];
+var WTABS = [['approved', 'Approved'], ['leads', 'Leads'], ['websites', 'Websites'], ['creations', 'Creations'], ['content', 'Content'], ['opps', 'Opportunities'], ['clients', 'Clients'], ['money', 'Money'], ['tasks', 'Tasks'], ['runs', 'Runs'], ['needs', 'Needs']];
 var AREA = { websites: { agents: ['builder', 'launch', 'scribe'], units: ['evolution'] }, content: { agents: ['studio', 'canvas', 'spotlight', 'herald', 'signal', 'compass'] }, opps: { agents: ['radar', 'analyst', 'dispatch', 'architect'] }, clients: { agents: ['care', 'courier', 'echo', 'brief'] }, money: { agents: ['ledger'] } };
 var workUnit = 'all';
 function wLink(u) { u = keep(u); if (!/^https?:\/\//i.test(u)) return ''; var h = u.replace(/^https?:\/\//i, '').split('/')[0]; return '<a class="wl" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(h) + ' ↗</a>'; }
@@ -6477,6 +6479,34 @@ function markStage(id, stage) {
 }
 function leadRow(id, l) { return { ts: toMs(l.updatedAt) || toMs(l.createdAt), html: wCard(id, l, keep(l.business) || id, [l.category || l.group || '', l.address || '', l.phone || ''].filter(Boolean).join(' · '), { text: l.stage || 'found', cls: 'st-' + (l.stage || 'found') }, ['business', 'stage', 'unit', 'fit', 'phone', 'address', 'rating', 'reviews', 'hours', 'source', 'notes'], stageStrip(id, l)) }; }
 function cmdRow(id, c) { return { ts: toMs(c.createdAt), html: wCard(id, c, (c.type === 'task' ? keep(c.text).slice(0, 110) : 'Run now: ' + aname(c.agent)), 'to ' + aname(c.agent) + ' · from ' + (c.from === 'michael' || c.createdBy === 'michael' ? 'you' : aname(c.from || c.createdBy)) + ' · ' + dayLab(toMs(c.createdAt)) + (c.dueText && c.status !== 'done' ? ' · due ' + keep(c.dueText).replace(/ New York$/, '') : ''), { text: c.status === 'done' ? 'done' : (c.due && toMs(c.due) < Date.now() ? 'overdue' : (c.status || 'open')), cls: c.status === 'done' ? 'st-done' : (c.due && toMs(c.due) < Date.now() ? 'st-bad' : 'st-on') }, ['text', 'agent', 'from', 'status', 'dueText', 'result', 'hop', 'parent', 'createdAt', 'doneAt']) }; }
+/* Approved: one card per approved business with everything in one place: details, the Verifier check, the approved script(s), the demo site */
+var APPSTAGES = /^(approved|sent|replied|booked|paid)$/;
+function approvedList() {
+  var by = {};
+  Object.keys(HUBX.needs || {}).forEach(function (nid) { var n = HUBX.needs[nid]; if (!n || n.kind !== 'draft' || !n.lead || n.status !== 'approved') return; (by[n.lead] = by[n.lead] || { drafts: [] }).drafts.push({ id: nid, n: n }); });
+  Object.keys(HUBX.leads || {}).forEach(function (lid) { var l = HUBX.leads[lid]; if (l && APPSTAGES.test(l.stage || '')) by[lid] = by[lid] || { drafts: [] }; });
+  return Object.keys(by).map(function (lid) {
+    var e = by[lid]; e.id = lid; e.l = (HUBX.leads || {})[lid] || {};
+    e.sites = Object.keys(HUBX.sites || {}).filter(function (sid) { var s = HUBX.sites[sid]; return s && (s.lead === lid || sid === 'demo-' + lid); }).map(function (sid) { return { id: sid, s: HUBX.sites[sid] }; });
+    e.drafts.sort(function (a, b) { return toMs(b.n.decidedAt) - toMs(a.n.decidedAt); });
+    e.at = e.drafts.length ? toMs(e.drafts[0].n.decidedAt) || toMs(e.drafts[0].n.createdAt) : toMs(e.l.stageAt) || toMs(e.l.updatedAt);
+    return e;
+  });
+}
+function approvedRow(e) {
+  var l = e.l, name = keep(l.business) || keep((e.drafts[0] && e.drafts[0].n.text || '').replace(/^First text for /, '').split(' (')[0]) || e.id;
+  var site = e.sites.length ? e.sites.map(function (x) { var s = x.s, has = typeof s.html === 'string' && s.html.length > 50, link = /^https?:\/\//i.test(s.link || '') ? s.link : '';
+      return '<div class="abox"><b>Website</b><span>' + esc((s.kind || 'demo') + (s.template ? ' · ' + keep(s.template) : '') + ' · built ' + dayLab(toMs(s.builtAt) || toMs(s.updatedAt) || Date.now())) + '</span><div class="acts">' + (has ? '<button class="btn gold sm" data-wsite="' + esc(x.id) + '">Open the site</button>' : '') + (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Open link ↗</a>' : '') + '</div></div>'; }).join('')
+    : '<div class="abox"><b>Website</b><span>No demo site in the hub yet.</span></div>';
+  var scripts = e.drafts.length ? e.drafts.map(function (d) { var n = d.n;
+      return '<div class="abox"><b>Approved script</b><span>' + esc((n.channel || 'text') + ' · ' + aname(n.agent || 'scribe') + ' · approved ' + dayLab(toMs(n.decidedAt) || Date.now()) + (n.decidedVia ? ' (' + keep(n.decidedVia) + ')' : '')) + '</span><p class="ascript">' + esc(keep(n.preview || n.prev || '')) + '</p><div class="acts"><button class="btn sm" data-wcopy="' + esc(d.id) + '">Copy</button>' + (n.phone || l.phone ? '<span class="st">Text it to ' + esc(keep(n.phone || l.phone)) + '</span>' : '') + '</div></div>'; }).join('')
+    : '<div class="abox"><b>Script</b><span>No approved script yet.</span></div>';
+  var vn = (e.drafts[0] && e.drafts[0].n.verifyNote) || l.verifyNote || '';
+  var check = '<div class="abox"><b>Verifier</b><span>' + esc(keep(vn) || (l.stage === 'verified' || l.verifiedAt ? 'Verified' : 'Checked before the draft was approved')) + '</span>' + (l.source ? '<div class="acts">' + wLink(l.source) + '</div>' : '') + '</div>';
+  var info = [l.category, l.address, l.phone, l.rating ? l.rating + ' stars' + (l.reviews ? ' (' + l.reviews + ' reviews)' : '') : ''].filter(Boolean).map(function (x) { return esc(keep(String(x))); }).join(' · ');
+  var extra = '<div class="agrid">' + site + scripts + check + '</div>' + (info ? '<p class="ainfo">' + info + '</p>' : '') + stageStrip(e.id, l);
+  return { ts: e.at || 0, html: wCard('ap-' + e.id, l, name, [l.category || '', l.phone || '', e.sites.length ? 'site ready' : 'no site yet', e.drafts.length ? 'script approved' : ''].filter(Boolean).join(' · '), { text: l.stage && l.stage !== 'verified' ? l.stage : 'approved', cls: 'st-on' }, ['business', 'stage', 'unit', 'phone', 'address', 'hours', 'rating', 'reviews', 'fit', 'notes'], extra) };
+}
 /* Opportunities: only the opportunities themselves (Radar writes one opps record per find), best first */
 var OPPRANK = { approved: 0, testing: 1, new: 2, watching: 3, dropped: 9 };
 function oppRow(id, o) {
@@ -6515,6 +6545,7 @@ function workRows() {
   else if (workTab === 'tasks') each('commands', function (id, c) { if (hit([c.text, c.agent, c.from, c.result])) out.push(cmdRow(id, c)); });
   else if (workTab === 'runs') each('runs', function (id, r) { if (hit([r.summary, r.agent, r.status])) out.push(runRow(id, r)); });
   else if (workTab === 'needs') each('needs', function (id, n) { if (hit([n.text, n.preview, n.agent])) out.push(needRow(id, n)); });
+  else if (workTab === 'approved') approvedList().forEach(function (e) { var l = e.l; if (hit([l.business, l.phone, l.address, l.category, l.stage].concat(e.drafts.map(function (d) { return d.n.preview || d.n.text; })))) out.push(approvedRow(e)); });
   else if (workTab === 'opps') each('opps', function (id, o) { if (hit([o.title, o.category, o.summary, o.status, o.next])) out.push(oppRow(id, o)); });
   else if (workTab === 'creations') each('creations', function (id, c) { if (hit([c.title, c.kind, c.for, c.notes])) out.push(creationRow(id, c)); });
   else if (area) {
@@ -6547,7 +6578,7 @@ function renderWork() {
   t.addEventListener('click', function (e) { var b = e.target.closest('[data-wtab]'); if (!b) return; workTab = b.getAttribute('data-wtab'); renderWork(); });
   $('wkUnits').addEventListener('click', function (e) { var b = e.target.closest('[data-wunit]'); if (!b) return; workUnit = b.getAttribute('data-wunit'); renderWork(); });
   s.addEventListener('input', function () { workQ = keep(s.value); renderWork(); });
-  l.addEventListener('click', function (e) { var st = e.target.closest('[data-wstage]'); if (st) { var pr = st.getAttribute('data-wstage').split('|'); markStage(pr[0], pr[1]); return; } var sb = e.target.closest('[data-wsite]'); if (sb) { openSite(sb.getAttribute('data-wsite')); return; } var b = e.target.closest('[data-wtoggle]'); if (!b) return; var id = b.getAttribute('data-wtoggle'); workOpen[id] = !workOpen[id]; renderWork(); });
+  l.addEventListener('click', function (e) { var st = e.target.closest('[data-wstage]'); if (st) { var pr = st.getAttribute('data-wstage').split('|'); markStage(pr[0], pr[1]); return; } var sb = e.target.closest('[data-wsite]'); if (sb) { openSite(sb.getAttribute('data-wsite')); return; } var cp = e.target.closest('[data-wcopy]'); if (cp) { var nd = (HUBX.needs || {})[cp.getAttribute('data-wcopy')] || {}, txt = keep(nd.preview || nd.prev || ''), box = cp.closest('.abox'); try { navigator.clipboard.writeText(txt).then(function () { toast('Copied. Paste it into your Messages app.', 'info', 'Script'); }, function () { var p = box && box.querySelector('.ascript'); if (p) { var r = document.createRange(); r.selectNodeContents(p); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } }); } catch (x) {} return; } var b = e.target.closest('[data-wtoggle]'); if (!b) return; var id = b.getAttribute('data-wtoggle'); workOpen[id] = !workOpen[id]; renderWork(); });
 })();
 
 })();
