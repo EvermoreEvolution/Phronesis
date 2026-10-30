@@ -293,6 +293,7 @@
 
   function wake(first) {
     if (live) return;
+    L('wake (' + Math.round(performance.now()) + ' ms)');
     live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); toHub({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     ctx.resume();
@@ -301,6 +302,7 @@
     var line = first ? NEXT.greet : NEXT.back;
     var g = freshGreeting(first); greetLine = null; gotVoice = false;
     say(g.text);
+    L('greeting ' + (g.buf ? 'playing' : 'not loaded yet') + ' (' + Math.round(performance.now()) + ' ms)');
     if (g.buf) playBuffer(g.buf, 1);    // instant: he greets while he forms and while the live voice connects
     var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () { setTimeout(function () { prepNext().catch(function () {}); }, 4000); };
