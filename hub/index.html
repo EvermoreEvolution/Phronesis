@@ -91,23 +91,32 @@
 
 </script>
 
-<div id="ehSign" hidden style="position:fixed;inset:0;z-index:9999;display:none;place-items:center;background:rgba(1,4,11,.92);font:15px/1.5 system-ui,sans-serif;color:#e8eef8">
+<div id="ehSign" hidden style="position:fixed;inset:0;z-index:9999;display:none;place-items:center;background:rgba(1,4,11,.94);font:15px/1.5 system-ui,sans-serif;color:#e8eef8">
   <form id="ehForm" style="width:min(360px,90vw);display:flex;flex-direction:column;gap:12px;padding:26px;border:1px solid rgba(127,196,255,.3);border-radius:16px;background:#050c1a">
     <div style="font:600 22px/1 Georgia,serif;letter-spacing:.3em">PHRONESIS</div>
-    <div style="color:#8796ad">Command center. Sign in with your email; a one-time link arrives in your inbox.</div>
+    <div id="ehHelp" style="color:#8796ad">Command center. Enter your email and open the sign-in link it sends, on this device. (On your PC, saying the wake phrase signs you in by itself.)</div>
     <input id="ehEmail" type="email" required value="michaelnyotoo@gmail.com" style="padding:11px 12px;border-radius:10px;border:1px solid rgba(127,196,255,.3);background:#020814;color:#e8eef8;font:inherit">
-    <button style="padding:11px;border-radius:10px;border:0;background:#7fc4ff;color:#01040b;font:600 15px system-ui;cursor:pointer">Send sign-in link</button>
+    <input id="ehCode" hidden disabled style="padding:11px 12px;border-radius:10px;border:1px solid rgba(127,196,255,.3);background:#020814;color:#e8eef8;font:600 20px system-ui;letter-spacing:6px;text-align:center">
+    <button id="ehBtn" style="padding:11px;border-radius:10px;border:0;background:#7fc4ff;color:#01040b;font:600 15px system-ui;cursor:pointer">Send sign-in link</button>
     <div id="ehMsg" style="color:#8796ad;min-height:1.5em"></div>
   </form>
 </div>
 <script>
 (function () {
-  var box = document.getElementById('ehSign'), f = document.getElementById('ehForm'), msg = document.getElementById('ehMsg');
-  if (!window.HUBDB || !window.HUBDB.client) { box.hidden = false; box.style.display = 'grid'; msg.textContent = 'The hub database is not set up yet.'; return; }
-  window.HUBDB.signedIn().then(function (ok) { box.hidden = !!ok; box.style.display = ok ? 'none' : 'grid'; });
-  f.addEventListener('submit', function (e) { e.preventDefault(); msg.textContent = 'Sending…';
-    window.HUBDB.signIn(document.getElementById('ehEmail').value.trim()).then(function (r) { msg.textContent = r && r.error ? ('Could not send: ' + r.error.message) : 'Check your email and open the link on this device.'; }); });
-  window.HUBDB.client.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_IN') location.reload(); });
+  var box = document.getElementById('ehSign'), f = document.getElementById('ehForm'), msg = document.getElementById('ehMsg'), code = document.getElementById('ehCode'), btn = document.getElementById('ehBtn'), em = document.getElementById('ehEmail'), sent = false;
+  function show(on) { box.hidden = !on; box.style.display = on ? 'grid' : 'none'; }
+  if (!window.HUBDB || !window.HUBDB.client) { show(true); msg.textContent = 'The hub database is not set up yet.'; return; }
+  window.HUBDB.signedIn().then(function (ok) { show(!ok); });
+  f.addEventListener('submit', function (e) {
+    e.preventDefault(); var c = window.HUBDB.client;
+    if (!sent) { msg.textContent = 'Sending…';
+      window.HUBDB.signIn(em.value.trim()).then(function (r) { if (r && r.error) { msg.textContent = 'Could not send: ' + r.error.message; return; }
+        msg.textContent = 'Link sent. Open it from your email on this device.'; });
+    } else { msg.textContent = 'Checking…';
+      c.auth.verifyOtp({ email: em.value.trim(), token: code.value.replace(/\D/g, ''), type: 'email' }).then(function (r) { if (r.error) msg.textContent = 'That code did not work: ' + r.error.message; else location.reload(); });
+    }
+  });
+  window.HUBDB.client.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_IN' && !box.hidden) location.reload(); });
 })();
 </script>
 <title>Phronesis Command</title>
