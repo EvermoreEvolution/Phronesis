@@ -37,7 +37,8 @@ void main(){
 }`;
 
 const FS = `
-uniform sampler2D tF, tS, tB; uniform float uHolo, uTime, uAwake, uReveal; uniform vec3 uTint;
+uniform sampler2D tF, tS, tB, tSuit; uniform float uHolo, uTime, uAwake, uReveal; uniform vec3 uTint;
+const float CXF = -0.010;
 varying vec3 vPos; varying vec3 vN; varying vec3 vView; varying float vSeam;
 vec2 h2(vec2 p){ p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p) * 43758.5453); }
 // cell edges (circuit traces) and cell centres (nodes)
@@ -49,6 +50,10 @@ vec2 cells(vec2 x){ vec2 n = floor(x), f = fract(x); float d1 = 8.0, d2 = 8.0; v
 vec2 uvF(vec3 p){ return vec2((p.x + 0.469) / 0.912 * (336.0/768.0) + 215.0/768.0, 1.0 - ((0.973 - p.y) / 1.973 * (757.0/768.0) + 10.0/768.0)); }
 vec2 uvS(vec3 p){ return vec2((0.399 - p.z) / 0.797 * (267.0/768.0) + 250.0/768.0, 1.0 - ((0.973 - p.y) / 1.973 * (757.0/768.0) + 12.0/768.0)); }
 vec2 uvB(vec3 p){ return vec2((0.443 - p.x) / 0.912 * (322.0/768.0) + 223.0/768.0, 1.0 - ((0.973 - p.y) / 1.973 * (757.0/768.0) + 11.0/768.0)); }
+float vfy(vec3 p){ return 10.0 + (0.973 - p.y) * 383.7; }
+vec2 suF(vec3 p){ return vec2((200.0 + (p.x + 0.01) / 0.00285) / 1536.0, 1.0 - (100.0 + (vfy(p) - 420.0) / 1.05) / 1024.0); }
+vec2 suB(vec3 p){ return vec2((993.0 - (p.x + 0.01) / 0.0031) / 1536.0, 1.0 - (100.0 + (vfy(p) - 420.0) / 1.143) / 1024.0); }
+vec2 suS(vec3 p){ return vec2((662.0 + (p.z + 0.40) / 0.68 * 152.0) / 1536.0, 1.0 - (100.0 + (vfy(p) - 420.0) / 1.2) / 1024.0); }
 void main(){
   vec3 n = normalize(vN), v = normalize(vView);
   vec3 on = normalize(cross(dFdx(vPos), dFdy(vPos)));
@@ -61,22 +66,19 @@ void main(){
   // hologram finish (Michael's reference): real face with a soft blue edge glow; the suit is the
   // glowing blue circuit suit with gold piping
   float fr = pow(1.0 - max(dot(n, v), 0.0), 4.0);
-  float jacket = 1.0 - smoothstep(0.05, 0.12, vPos.y);
+  float jacket = 1.0 - smoothstep(0.07, 0.13, vPos.y);
   float scan = 0.95 + 0.05 * sin(vPos.y * 520.0 - uTime * 4.0);
   float bp = fract(vPos.y * 1.1 - uTime * 0.16); float band = smoothstep(0.0, 0.012, bp) * (1.0 - smoothstep(0.012, 0.05, bp));
   float lum = dot(col, vec3(0.3, 0.55, 0.15));
   // face and hair: real colour, cooled, soft blue rim only at the silhouette
   vec3 face = mix(real, real * vec3(0.85, 0.96, 1.16), 0.55) * scan + uTint * (pow(fr, 1.6) * 0.7 + band * 0.10);
-  // suit: deep navy base, blue circuit traces, glowing nodes, gold piping from the bright seams
-  vec2 cp = vec2(vPos.x * (abs(on.x) > 0.6 ? 0.0 : 1.0) + vPos.z * (abs(on.x) > 0.6 ? 1.0 : 0.0), vPos.y) * 9.0;
-  vec2 ce = cells(cp + vec2(0.0, 0.0));
-  float trace = 1.0 - smoothstep(0.0, 0.035, ce.x);
-  float node = 1.0 - smoothstep(0.0, 0.06, ce.y);
-  float tw = 0.6 + 0.4 * sin(uTime * 2.0 + h2(floor(cp)).x * 6.28);
-  float gold = smoothstep(0.17, 0.32, lum) * (1.0 - smoothstep(0.55, 0.8, lum));
-  vec3 navy = vec3(0.02, 0.06, 0.16) + real * 0.2 + uTint * 0.10 * (0.6 + 0.4 * sin(vPos.y * 30.0 + uTime));
-  vec3 suit = navy + vec3(0.25, 0.6, 1.0) * trace * 1.1 * tw + vec3(0.6, 0.85, 1.0) * node * 1.2 * tw
-            + vec3(1.0, 0.72, 0.30) * gold * 1.6 + uTint * (fr * 1.8 + band * 0.3);
+  // suit: Michael's Phronesis uniform (black, gold piping) painted from his reference sheet, with thin blue light strips
+  vec3 sc = (texture2D(tSuit, suF(vPos)).rgb * wf + texture2D(tSuit, suS(vPos)).rgb * ws + texture2D(tSuit, suB(vPos)).rgb * wb) / max(wf + wb + ws, 1e-3);
+  float sl = dot(sc, vec3(0.3, 0.55, 0.15));
+  float goldness = smoothstep(0.08, 0.25, sc.r - sc.b) * smoothstep(0.15, 0.35, sl);
+  float strip = (1.0 - smoothstep(0.0, 0.006, abs(abs(vPos.x - CXF) - 0.40))) * step(abs(on.x), 0.75) * (0.6 + 0.4 * sin(uTime * 1.7 + vPos.y * 9.0));
+  vec3 suit = sc * (0.85 + 0.35 * max(dot(n, normalize(vec3(-0.3, 0.4, 1.0))), 0.0)) + vec3(1.0, 0.75, 0.35) * goldness * 0.45
+            + vec3(0.25, 0.55, 1.0) * strip * 0.9 + uTint * (fr * 1.2 + band * 0.15);
   vec3 holo = mix(face, suit, jacket);
   vec3 outc = mix(real, holo, uHolo);
   float fade = smoothstep(-0.98, -0.55, vPos.y);   // the bust dissolves into light at the base
@@ -92,11 +94,11 @@ export async function createHead3D(canvas, opts = {}) {
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(24, 1, 0.05, 20);
   const tl = new THREE.TextureLoader();
-  const [gltf, tF, tS, tB] = await Promise.all([
+  const [gltf, tF, tS, tB, tSuit] = await Promise.all([
     new GLTFLoader().loadAsync(base + 'head.glb'),
-    tl.loadAsync(base + 'front.jpg'), tl.loadAsync(base + 'side.jpg'), tl.loadAsync(base + 'back.jpg')]);
-  [tF, tS, tB].forEach(t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; });
-  const U = { tF: { value: tF }, tS: { value: tS }, tB: { value: tB }, uJaw: { value: 0 }, uWide: { value: 0 }, uTime: { value: 0 },
+    tl.loadAsync(base + 'front.jpg'), tl.loadAsync(base + 'side.jpg'), tl.loadAsync(base + 'back.jpg'), tl.loadAsync(base + 'suit.jpg')]);
+  [tF, tS, tB, tSuit].forEach(t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; });
+  const U = { tSuit: { value: tSuit }, tF: { value: tF }, tS: { value: tS }, tB: { value: tB }, uJaw: { value: 0 }, uWide: { value: 0 }, uTime: { value: 0 },
     uHolo: { value: opts.holo ?? 0.65 }, uAwake: { value: 1 }, uReveal: { value: 0 }, uTint: { value: new THREE.Color(0.35, 0.7, 1.0) } };
   const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: FS, transparent: true, extensions: { derivatives: true } });
   const pivot = new THREE.Group(); scene.add(pivot);

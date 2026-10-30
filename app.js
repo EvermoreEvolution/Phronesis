@@ -68,8 +68,12 @@
   }
   function stopVoice() { playing.slice().forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} }); playing = []; nextT = 0; }
   function speakingNow() { if (head && head.state !== 'speaking') head.say(-1, true); setStatus('speaking', 'Speaking'); clearIdle(); }
+  var dismissing = false;
+  var restT = null;
+  function restAfterVoice() { clearTimeout(restT); restT = setTimeout(function () { if (playing.length || !live) return; dismissing = false; sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.'); }, 1100); }
   function onVoiceDone() {
-    if (!live) return; if (head) head.setState('listening');
+    if (!live) return;
+    if (dismissing) { restAfterVoice(); return; } if (head) head.setState('listening');
     if (sending) { setStatus('listening', 'Listening'); armIdle(); return; }
     setStatus('thinking', micState !== 'on' ? 'Waiting for microphone' : 'Connecting');
     waitHint();
@@ -147,7 +151,7 @@
         res();
       };
       w.onerror = function () { L('ws error'); if (!opened) rej(new Error('connect failed')); };
-      w.onclose = function (e) { wsState = 'closed ' + e.code; L('voice link closed ' + e.code + ' ' + (e.reason || '')); if (!opened) rej(new Error('closed ' + e.code)); if (ws === w) { ws = null; sending = false; if (live) sleep(e.code === 1000 ? 'Conversation ended. Tap to talk again.' : 'Connection dropped (' + (e.reason || e.code) + '). Tap to try again.'); } };
+      w.onclose = function (e) { wsState = 'closed ' + e.code; L('voice link closed ' + e.code + ' ' + (e.reason || '')); if (!opened) rej(new Error('closed ' + e.code)); if (ws === w) { ws = null; sending = false; if (live) { if (e.code === 1000 || dismissing) { L('dismissed: resting after his sign-off'); dismissing = true; restAfterVoice(); } else sleep('Connection dropped (' + (e.reason || e.code) + '). Tap to try again.'); } } };
       w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } onEvent(d); };
     });
   }
@@ -165,7 +169,8 @@
         var c = d.agent_response_correction_event || {}; if (c.corrected_agent_response) say(c.corrected_agent_response); break;
       case 'user_transcript':
         var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u);
-        if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle(); }
+        if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle();
+          if (/\b(that'?s all|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 9000); } }
         break;
       case 'interruption':
         L('interrupted'); stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
@@ -189,7 +194,7 @@
 
   function wake(first) {
     if (live) return;
-    live = true; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
+    live = true; dismissing = false; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
