@@ -6183,10 +6183,15 @@ function runTest() {
   startAgentTask(pr.triggerId).then(function () { t.state = 'waiting'; t.t0 = Date.now(); renderSettings(); setTimeout(function () { checkTest(); }, 100); var iv = setInterval(function () { checkTest(); if (HUB.testing !== t || t.state !== 'waiting') clearInterval(iv); }, 3000); },
     function (e) { t.state = 'failed'; t.msg = mcpMsg(e); renderSettings(); });
 }
+/* any page error is kept and written to meta/diag (at most every 20 s) so Claude can see what broke */
+var lastErrDiag = 0, errDiagT = null;
+function logErr(m) { HUB.errs.push(String(m).slice(0, 240)); if (HUB.errs.length > 20) HUB.errs = HUB.errs.slice(-20); clearTimeout(errDiagT); errDiagT = setTimeout(function () { if (Date.now() - lastErrDiag > 20000) { lastErrDiag = Date.now(); writeDiag(); } }, 1500); }
+window.addEventListener('error', function (e) { logErr('page: ' + (e && e.message) + ' @' + (e && e.lineno)); });
+window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; logErr('promise: ' + (r && (r.message || r.code) || r)); });
 function writeDiag() {
   HUB.diagDone = true; if (!canWrite()) return;
   var counts = {}; HCOLL.forEach(function (c) { counts[c] = Object.keys(HUBX[c] || {}).length; });
-  hubSet('meta/diag', { at: Date.now(), ver: 'command-v4', caps: HUB.caps, canEdit: HUB.canEdit, loaded: HUB.loaded, counts: counts, mode: MODE, errs: HUB.errs.slice(-5), ua: String(navigator.userAgent || '').slice(0, 120), w: window.innerWidth }).then(function () {}, function () {});
+  hubSet('meta/diag', { at: Date.now(), ver: 'command-v5', view: typeof view === 'string' ? view : '', tab: typeof workTab === 'string' ? workTab : '', caps: HUB.caps, canEdit: HUB.canEdit, loaded: HUB.loaded, counts: counts, mode: MODE, errs: HUB.errs.slice(-5), ua: String(navigator.userAgent || '').slice(0, 120), w: window.innerWidth }).then(function () {}, function () {});
 }
 
 /* ---------- Demo / Live ---------- */
@@ -6775,13 +6780,13 @@ function saleRow(id, s) { return { ts: toMs(s.at), html: wCard(id, s, money(+s.a
 function workRows() {
   var q = workQ.toLowerCase(), out = [];
   function hit(parts) { return !q || parts.join(' ').toLowerCase().indexOf(q) >= 0; }
-  function each(coll, fn) { Object.keys(HUBX[coll] || {}).forEach(function (id) { var d = HUBX[coll][id]; if (d) fn(id, d); }); }
+  function each(coll, fn) { Object.keys(HUBX[coll] || {}).forEach(function (id) { var d = HUBX[coll][id]; if (!d) return; try { fn(id, d); } catch (e) { workErr(workTab + ' ' + coll + '/' + id + ': ' + (e && e.message)); } }); }
   var area = AREA[workTab], byAgent = area ? function (a) { return area.agents.indexOf(a) >= 0; } : null;
   if (workTab === 'leads') each('leads', function (id, l) { if (workUnit !== 'all' && (l.unit || 'evolution') !== workUnit) return; if (hit([l.business, l.stage, l.unit, l.notes, l.category, l.address, l.phone])) out.push(leadRow(id, l)); });
   else if (workTab === 'tasks') each('commands', function (id, c) { if (hit([c.text, c.agent, c.from, c.result])) out.push(cmdRow(id, c)); });
   else if (workTab === 'runs') each('runs', function (id, r) { if (hit([r.summary, r.agent, r.status])) out.push(runRow(id, r)); });
   else if (workTab === 'needs') each('needs', function (id, n) { if (hit([n.text, n.preview, n.agent])) out.push(needRow(id, n)); });
-  else if (workTab === 'approved') approvedList().forEach(function (e) { var l = e.l; if (hit([l.business, l.phone, l.address, l.category, l.stage].concat(e.drafts.map(function (d) { return d.n.preview || d.n.text; })))) out.push(approvedRow(e)); });
+  else if (workTab === 'approved') approvedList().forEach(function (e) { try { var l = e.l; if (hit([l.business, l.phone, l.address, l.category, l.stage].concat(e.drafts.map(function (d) { return d.n.preview || d.n.text; })))) out.push(approvedRow(e)); } catch (x) { workErr('approved ' + e.id + ': ' + (x && x.message)); } });
   else if (workTab === 'opps') each('opps', function (id, o) { if (hit([o.title, o.category, o.summary, o.status, o.next])) out.push(oppRow(id, o)); });
   else if (workTab === 'style') each('style', function (id, x) { if (hit([x.note, x.name, x.for])) out.push(styleRow(id, x)); });
   else if (workTab === 'clients') {
@@ -6803,7 +6808,16 @@ function workRows() {
   return out;
 }
 function workCounts() { var c = {}, keepTab = workTab, keepQ = workQ, keepU = workUnit; workQ = ''; workUnit = 'all'; WTABS.forEach(function (t) { workTab = t[0]; c[t[0]] = workRows().length; }); workTab = keepTab; workQ = keepQ; workUnit = keepU; return c; }
+/* a record that breaks a card is skipped and logged (meta/diag), never taking the whole Work page down (Michael, Oct 30, 5:02 pm) */
+var WERR = {};
+function workErr(m) { m = String(m).slice(0, 220); if (WERR[m]) return; WERR[m] = 1; try { console.error('[work] ' + m); } catch (e) {} if (typeof logErr === 'function') logErr('work: ' + m); }
 function renderWork() {
+  try { renderWork0(); } catch (e) {
+    workErr('render ' + workTab + ': ' + (e && e.message) + ' ' + String(e && e.stack || '').split('\n').slice(1, 3).join(' '));
+    var l = $('wkList'); if (l) l.innerHTML = '<div class="wempty">Something in this tab did not load, sir. It has been logged so Claude can fix it; the other tabs still work.</div>';
+  }
+}
+function renderWork0() {
   var live = MODE === 'live', c = live ? workCounts() : {};
   $('wkNote').textContent = live ? 'Every record the agents have written in the hub, as it lands. Tap a row for all its details and source links.' : 'Connecting to the hub, sir. The live records appear in a moment.';
   sync($('wkTabs'), workTab + JSON.stringify(c), function () { return WTABS.map(function (t) { return '<button class="chip" data-wtab="' + t[0] + '" aria-pressed="' + (t[0] === workTab) + '">' + t[1] + (live ? ' <b>' + (c[t[0]] || 0) + '</b>' : '') + '</button>'; }).join(''); });
