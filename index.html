@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Phronesis</title>
+<meta name="theme-color" content="#01040b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500&display=swap">
+<style>
+:root{--bg:#01040b;--fg:#e8eef8;--dim:#8796ad;--line:rgba(140,190,255,.18);--blue:#7fc4ff;--gold:#ffcf86;--red:#ff7a7a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0}
+#gl,#hd,#fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+#gl{transition:opacity 1.4s ease}
+#hd,#fx{transition:opacity 1.2s ease}
+body.dormant #hd,body.dormant #fx{opacity:0}
+body:not(.dormant) #gl{opacity:0;pointer-events:none}
+#lab{position:absolute;inset:0;pointer-events:none}
+header{position:fixed;top:0;left:0;right:0;padding:calc(14px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 0 max(18px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:center;z-index:5}
+.mark{font:600 22px/1 'Cormorant Garamond',Georgia,serif;letter-spacing:.32em;text-transform:uppercase}
+.chip{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#3b4658;box-shadow:0 0 0 0 transparent;transition:background .3s}
+.chip[data-s=listening] .dot{background:var(--blue);box-shadow:0 0 12px var(--blue)}
+.chip[data-s=speaking] .dot{background:var(--gold);box-shadow:0 0 12px var(--gold)}
+.chip[data-s=thinking] .dot{background:#c9a5ff;box-shadow:0 0 12px #c9a5ff}
+.chip[data-s=error] .dot{background:var(--red)}
+footer{position:fixed;left:0;right:0;bottom:0;padding:0 max(18px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;align-items:center;gap:16px;z-index:5;pointer-events:none}
+#cap{max-width:640px;min-height:3.2em;text-align:center;font:500 21px/1.45 'Cormorant Garamond',Georgia,serif;color:var(--fg);text-shadow:0 2px 14px #000;transition:opacity .4s}
+#cap .you{display:block;font:400 13px/1.4 Inter,sans-serif;color:var(--dim);margin-bottom:4px}
+#mic{pointer-events:auto;width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle at 50% 40%,rgba(127,196,255,.18),rgba(1,4,11,.85));color:var(--fg);display:grid;place-items:center;cursor:pointer;position:relative;transition:transform .2s}
+#mic:active{transform:scale(.95)}
+#mic svg{width:30px;height:30px}
+#mic::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--blue);opacity:0;transform:scale(calc(1 + var(--lv,0)*.35));transition:opacity .3s}
+body.live #mic::after{opacity:.7}
+body.live.speaking #mic::after{border-color:var(--gold)}
+.hint{font-size:12px;color:var(--dim);letter-spacing:.06em;text-align:center}
+#load{position:fixed;inset:0;display:grid;place-items:center;z-index:10;background:var(--bg);transition:opacity .8s}
+#load.gone{opacity:0;pointer-events:none}
+#load .in{display:flex;flex-direction:column;align-items:center;gap:18px}
+#load .ring{width:54px;height:54px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--blue);animation:sp 1s linear infinite}
+#load.ready .ring{display:none}
+#go{display:none;padding:14px 26px;border-radius:999px;border:1px solid var(--blue);background:transparent;color:var(--fg);font:500 15px Inter,sans-serif;letter-spacing:.08em;cursor:pointer}
+#load.ready #go{display:block}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#load .ring{animation:none}}
+</style>
+</head>
+<body class="dormant">
+<div id="stage"><canvas id="gl"></canvas><canvas id="lab"></canvas><canvas id="hd"></canvas><canvas id="fx"></canvas></div>
+<header><div class="mark">Phronesis</div><div class="chip" id="chip" data-s="dormant"><span class="dot"></span><span id="st">Dormant</span></div></header>
+<footer>
+  <div id="cap"></div>
+  <button id="mic" aria-label="Talk to Phronesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+  <div class="hint" id="hint">Tap to talk, or say "Phronesis"</div>
+</footer>
+<div id="load"><div class="in"><div class="ring"></div><div class="mark">Phronesis</div><div class="hint" id="lmsg">Preparing his voice…</div><button id="go">Wake Phronesis</button></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="land.js"></script>
+<script src="head_shaders.js"></script>
+<script src="head_core.js"></script>
+<script src="globe.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
