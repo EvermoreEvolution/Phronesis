@@ -180,7 +180,7 @@
       case 'user_transcript':
         var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u);
         if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle();
-          if (/\b(that'?s all|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
+          if (/\b(that'?s all|that is all|that is it|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
         break;
       case 'interruption':
         L('interrupted'); stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
