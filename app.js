@@ -168,14 +168,23 @@
       'Good evening, sir. The night shift reporting, Mr. Evermore.', 'Ah, a night owl tonight. How do you do, Mr. Evermore?', 'Late hours, sir. I am right here, Mr. Evermore.', 'Good evening, sir, or is it good morning by now, Mr. Evermore?'],
     back: ['Yes, Mr. Evermore?', 'At your service, Mr. Evermore.', 'I am here, Mr. Evermore.', 'Go ahead, Mr. Evermore.', 'Back again, sir. What do you need, Mr. Evermore?', 'Right here, Mr. Evermore.', 'Listening, Mr. Evermore.']
   };
+  // 45 greetings recorded in his voice (voice/h/<set>_<i>.mp3), all ending with "Mr. Evermore": one plays the instant he wakes,
+  // never one of the last dozen, while the live voice connects behind it for the conversation
+  var HREC = {};
+  function loadH(set) { GREETS[set].forEach(function (t, i) { var k = set + '_' + i; if (HREC[k]) return;
+    fetch('voice/h/' + k + '.mp3?v=2').then(function (r) { return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { HREC[k] = b; }, function () {}); }); }
   function freshGreeting(first) {
     var set = first ? period() : 'back', list = GREETS[set], recent = [];
     try { recent = JSON.parse(localStorage.getItem('phr.recentGreets') || '[]'); } catch (e) {}
-    var choices = list.filter(function (t) { return recent.indexOf(t) < 0; }); if (!choices.length) choices = list;
-    var t = choices[Math.floor(Math.random() * choices.length)];
+    var idx = list.map(function (t, i) { return i; }).filter(function (i) { return recent.indexOf(list[i]) < 0 && HREC[set + '_' + i]; });
+    if (!idx.length) idx = list.map(function (t, i) { return i; }).filter(function (i) { return HREC[set + '_' + i]; });
+    if (!idx.length) idx = list.map(function (t, i) { return i; });
+    var i = idx[Math.floor(Math.random() * idx.length)], t = list[i];
     recent.unshift(t); try { localStorage.setItem('phr.recentGreets', JSON.stringify(recent.slice(0, 12))); } catch (e) {}
-    return t;
+    return { text: t, buf: HREC[set + '_' + i] };
   }
+  setTimeout(function () { loadH(period()); loadH('back'); }, 300);
+  setInterval(function () { loadH(period()); }, 15 * 60000);
   var greetLine = null, gotVoice = false;
   function connect() {
     return new Promise(function (res, rej) {
@@ -290,16 +299,11 @@
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
     var line = first ? NEXT.greet : NEXT.back;
-    greetLine = freshGreeting(first); gotVoice = false; say(greetLine);
+    var g = freshGreeting(first); greetLine = null; gotVoice = false;
+    say(g.text);
+    if (g.buf) playBuffer(g.buf, 1);    // instant: he greets while he forms and while the live voice connects
     var faceP = startFace().then(function () { return true; }, function () { return false; });
-    pendingAwake = function () {
-      setTimeout(function () {   // backup: a recording, only if his live voice has not started
-        if (!live || gotVoice) return;
-        var b = REC[line]; L('live greeting late, using a recording');
-        if (b) { say(lineText(line)); if (AV.on) faceBuffer(b); else playBuffer(b, 1); } else onVoiceDone();
-      }, 2600);
-      setTimeout(function () { prepNext().catch(function () {}); }, 4000);
-    };
+    pendingAwake = function () { setTimeout(function () { prepNext().catch(function () {}); }, 4000); };
     if (head) head.wake(); else pendingAwake();
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
       .catch(function (e) { L('wake failed: ' + (e && (e.name + ' ' + e.message))); live = false; sending = false; pendingAwake = null; clearTimeout(hintT); stopVoice(); if (head) head.setState('dormant'); lisSend({ live: false }); setStatus('error', 'Problem'); say(micState === 'denied' ? 'The microphone is blocked for this page, sir. Click the lock icon by the address, allow the microphone, then tap me again.' : micState !== 'on' ? 'I could not open the microphone, sir. Check that one is plugged in and not used by another app, then tap me again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
