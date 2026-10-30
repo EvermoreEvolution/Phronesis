@@ -11,6 +11,7 @@
 
   function $(id) { return document.getElementById(id); }
   var body = document.body, cap = $('cap'), chip = $('chip'), st = $('st'), mic = $('mic'), hint = $('hint');
+  if (Q.get('overlay') === '1') body.classList.add('overlay');
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';

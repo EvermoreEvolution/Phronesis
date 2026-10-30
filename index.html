@@ -25,6 +25,12 @@ body.h3 #hd,body.h3 #fx{display:none}
 body.face.live #avw{opacity:1}
 body.face #hd,body.face #fx,body.face #hd3{opacity:0!important}
 body.faceout #avw{opacity:0!important;transition:opacity 1.8s ease}
+/* overlay mode: he sits in the middle of the hub, framed by a soft glow instead of a window */
+body.overlay{background:radial-gradient(ellipse at 50% 42%,#071226 0%,#01040b 70%)}
+body.overlay header .mark{font-size:15px;letter-spacing:.28em;opacity:.7}
+body.overlay #hint{display:none}
+body.overlay #cap{font-size:18px}
+body.overlay::after{content:"";position:fixed;inset:0;pointer-events:none;border:1px solid rgba(127,196,255,.28);border-radius:18px;box-shadow:inset 0 0 60px rgba(60,140,255,.18)}
 body:not(.h3) #hd3{display:none}
 body:not(.dormant) #gl,body:not(.dormant) #lab{opacity:0;pointer-events:none}
 #lab{transition:opacity 1.2s ease}
