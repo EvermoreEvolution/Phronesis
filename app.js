@@ -113,7 +113,7 @@
 
   // ---------- recorded lines (Adam deeper) ----------
   var REC = {};
-  function loadLine(k) { return fetch('voice/g/' + k + '.mp3').then(function (r) { if (!r.ok) throw new Error(k + ' ' + r.status); return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { REC[k] = b; }); }
+  function loadLine(k) { return fetch('voice/g/' + k + '.mp3?v=1793345228').then(function (r) { if (!r.ok) throw new Error(k + ' ' + r.status); return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { REC[k] = b; }); }
   function period() { var h = new Date().getHours(); return h < 4 ? 'late' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 23 ? 'evening' : 'late'; }
   function pickLine(set) {   // a different line each time, never the same twice in a row
     var list = GREET[set], last = null; try { last = localStorage.getItem('phr.last.' + set); } catch (e) {}
