@@ -2465,7 +2465,7 @@ function main() {
   routeHash();
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(.05, (now - last) / 1000); last = now; clockT += dt;
+    const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; clockT += dt;
     stepDemo(dt);
     AG.forEach(a => animateAgent(a, dt));
     updateFloors(dt); updateSky(dt); updateGrass(); updateMoney(dt); updateChat(dt); updatePackets(dt); updateTweens(dt); updateCamera(dt); updateLabels(); panelTick();

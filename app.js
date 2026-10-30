@@ -140,7 +140,7 @@
         var sink = ctx.createGain(); sink.gain.value = 0; micSrc.connect(micNode); micNode.connect(sink); sink.connect(ctx.destination);
         micNode.port.onmessage = function (e) {
           micLevel = e.data.rms;
-          if (micLevel > 0.03 && live && !playing.length) armIdle();
+          if (micLevel > 0.03 && live) armIdle();
           if (ws && ws.readyState === 1 && sending) ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(e.data.pcm)) }));
         };
         L('mic on ' + ctx.sampleRate);
@@ -151,8 +151,22 @@
 
   // ---------- conversation ----------
   var ws = null, live = false, sending = false, convId = null, idleT = null, pendingAwake = null, greeted = false;
-  function clearIdle() { if (idleT) { clearTimeout(idleT); idleT = null; } }
-  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); } }, IDLE_MS); }
+  // He rests only after IDLE_MS of real quiet: not while he is speaking (his face video can run a little behind the audio),
+  // not while he is working out a reply, and not while anyone near the mic is talking.
+  var lastAct = Date.now(), awaitingT = 0;
+  function clearIdle() { lastAct = Date.now(); }
+  function armIdle() { lastAct = Date.now(); }
+  function busyNow() {
+    if (playing.length) return true;
+    if (AV.on && performance.now() / 1000 < AV.end + 1.5) return true;
+    if (awaitingT && Date.now() - awaitingT < 15000) return true;
+    return false;
+  }
+  setInterval(function () {
+    if (!live || !sending || dismissing) return;
+    if (busyNow()) { lastAct = Date.now(); return; }
+    if (Date.now() - lastAct >= IDLE_MS) { L('idle sleep after ' + Math.round((Date.now() - lastAct) / 1000) + ' s of quiet'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); }
+  }, 500);
 
   var GREETS = {
     morning: ['Good morning, Mr. Evermore.', 'Top of the morning to you, Mr. Evermore.', 'A splendid morning, Mr. Evermore.', 'How do you do this morning, Mr. Evermore?',
@@ -209,14 +223,14 @@
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
-        var a = d.audio_event || {}; if (a.audio_base_64) gotVoice = true; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
+        var a = d.audio_event || {}; if (a.audio_base_64) { gotVoice = true; awaitingT = 0; lastAct = Date.now(); } if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
       case 'agent_response':
         say((d.agent_response_event || {}).agent_response || ''); break;
       case 'agent_response_correction':
         var c = d.agent_response_correction_event || {}; if (c.corrected_agent_response) say(c.corrected_agent_response); break;
       case 'user_transcript':
         var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u);
-        if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle();
+        if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle(); awaitingT = Date.now();
           if (/\b(that'?s all|that is all|that is it|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
         break;
       case 'interruption':
