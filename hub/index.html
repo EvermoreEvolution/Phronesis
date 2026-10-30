@@ -6701,14 +6701,19 @@ function approvedRow(e) {
   var site = e.sites.length ? e.sites.map(function (x) { var s = x.s, has = typeof s.html === 'string' && s.html.length > 50, link = /^https?:\/\//i.test(s.link || '') ? s.link : '';
       return '<div class="abox"><b>Website</b><span>' + esc((s.kind || 'demo') + (s.template ? ' · ' + keep(s.template) : '') + ' · built ' + dayLab(toMs(s.builtAt) || toMs(s.updatedAt) || Date.now())) + '</span><div class="acts">' + (has ? '<button class="btn gold sm" data-wsite="' + esc(x.id) + '">Open the site</button>' : '') + (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Open link ↗</a>' : '') + '</div></div>'; }).join('')
     : '<div class="abox"><b>Website</b><span>No demo site in the hub yet.</span></div>';
-  var scripts = e.drafts.length ? e.drafts.map(function (d) { var n = d.n;
-      return '<div class="abox"><b>Approved script</b><span>' + esc((n.channel || 'text') + ' · ' + aname(n.agent || 'scribe') + ' · approved ' + dayLab(toMs(n.decidedAt) || Date.now()) + (n.decidedVia ? ' (' + keep(n.decidedVia) + ')' : '')) + '</span><p class="ascript">' + esc(keep(n.preview || n.prev || '')) + '</p><div class="acts"><button class="btn sm" data-wcopy="' + esc(d.id) + '">Copy</button>' + (n.phone || l.phone ? '<span class="st">Text it to ' + esc(keep(n.phone || l.phone)) + '</span>' : '') + '</div></div>'; }).join('')
+  /* one script per kind, newest first (Michael, Oct 30, 4:59 pm: 'I'm seeing two approved scripts'); older versions fold away */
+  var kinds = {}, older = 0;
+  e.drafts.forEach(function (d) { var n = d.n, ch = (n.channel || 'text').toLowerCase(), lg = (n.language || 'en').toLowerCase(), k = ch + '|' + lg; if (kinds[k]) { older++; return; } kinds[k] = d; });
+  var keep1 = Object.keys(kinds).map(function (k) { return kinds[k]; });
+  var label = function (n) { var ch = (n.channel || 'text').toLowerCase(), lg = (n.language || 'en').toLowerCase(), L = { es: 'Spanish', pt: 'Portuguese' }[lg]; return (ch === 'email' ? 'Email' : ch === 'dm' ? 'DM' : 'Text message') + (L ? ' (' + L + ')' : ''); };
+  var scripts = keep1.length ? keep1.map(function (d) { var n = d.n;
+      return '<div class="abox"><b>' + esc(label(n)) + '</b><span>' + esc((n.channel || 'text') + ' · ' + aname(n.agent || 'scribe') + ' · approved ' + dayLab(toMs(n.decidedAt) || Date.now()) + (n.decidedVia ? ' (' + keep(n.decidedVia) + ')' : '')) + '</span>' + ((n.channel || '').toLowerCase() === 'email' && n.subject ? '<p class="ascript"><b>Subject:</b> ' + esc(keep(n.subject)) + '</p>' : '') + '<p class="ascript">' + esc(keep(n.preview || n.prev || '')) + '</p>' + (n.english ? '<p class="ascript" style="opacity:.7"><b>English copy:</b> ' + esc(keep(n.english)) + '</p>' : '') + '<div class="acts"><button class="btn sm" data-wcopy="' + esc(d.id) + '">Copy</button>' + ((n.channel || '').toLowerCase() === 'email' ? (n.email ? '<span class="st">Email it to ' + esc(keep(n.email)) + '</span>' : '') : (n.phone || l.phone ? '<span class="st">Text it to ' + esc(keep(n.phone || l.phone)) + '</span>' : '')) + '</div></div>'; }).join('') + (older ? '<div class="abox"><b>Older version</b><span>' + older + ' earlier approved wording replaced by the newest one above; nothing to do.</span></div>' : '')
     : '<div class="abox"><b>Script</b><span>No approved script yet.</span></div>';
   var vn = (e.drafts[0] && e.drafts[0].n.verifyNote) || l.verifyNote || '';
   var check = '<div class="abox"><b>Verifier</b><span>' + esc(keep(vn) || (l.stage === 'verified' || l.verifiedAt ? 'Verified' : 'Checked before the draft was approved')) + '</span>' + (l.source ? '<div class="acts">' + wLink(l.source) + '</div>' : '') + '</div>';
   var info = [l.category, l.address, l.phone, l.rating ? l.rating + ' stars' + (l.reviews ? ' (' + l.reviews + ' reviews)' : '') : ''].filter(Boolean).map(function (x) { return esc(keep(String(x))); }).join(' · ');
   var extra = '<div class="agrid">' + site + scripts + check + '</div>' + (info ? '<p class="ainfo">' + info + '</p>' : '') + stageStrip(e.id, l);
-  return { ts: e.at || 0, html: wCard('ap-' + e.id, l, name, [l.category || '', l.phone || '', e.sites.length ? 'site ready' : 'no site yet', e.drafts.length ? 'script approved' : ''].filter(Boolean).join(' · '), { text: l.stage && l.stage !== 'verified' ? l.stage : 'approved', cls: 'st-on' }, ['business', 'stage', 'unit', 'phone', 'address', 'hours', 'rating', 'reviews', 'fit', 'notes'], extra) };
+  return { ts: e.at || 0, html: wCard('ap-' + e.id, l, name, [l.category || '', l.phone || '', e.sites.length ? 'site ready' : 'no site yet', e.drafts.length ? (e.drafts.some(function (d) { return (d.n.channel || '').toLowerCase() === 'email'; }) ? 'text and email approved' : 'text approved') : ''].filter(Boolean).join(' · '), { text: l.stage && l.stage !== 'verified' ? l.stage : 'approved', cls: 'st-on' }, ['business', 'stage', 'unit', 'phone', 'address', 'hours', 'rating', 'reviews', 'fit', 'notes'], extra) };
 }
 /* Opportunities: only the opportunities themselves (Radar writes one opps record per find), best first */
 var OPPRANK = { approved: 0, testing: 1, new: 2, watching: 3, dropped: 9 };
@@ -6779,6 +6784,11 @@ function workRows() {
   else if (workTab === 'approved') approvedList().forEach(function (e) { var l = e.l; if (hit([l.business, l.phone, l.address, l.category, l.stage].concat(e.drafts.map(function (d) { return d.n.preview || d.n.text; })))) out.push(approvedRow(e)); });
   else if (workTab === 'opps') each('opps', function (id, o) { if (hit([o.title, o.category, o.summary, o.status, o.next])) out.push(oppRow(id, o)); });
   else if (workTab === 'style') each('style', function (id, x) { if (hit([x.note, x.name, x.for])) out.push(styleRow(id, x)); });
+  else if (workTab === 'clients') {
+    /* Michael, Oct 30, 4:59 pm: Clients is only for real clients, people who booked or paid, never prospects or agent notes */
+    each('leads', function (id, l) { if (/^(booked|paid|client)$/.test(l.stage || '') && hit([l.business, l.stage, l.notes, l.phone])) out.push(leadRow(id, l)); });
+    each('sales', function (id, x) { if (hit([x.what, x.unit, x.client])) out.push(saleRow(id, x)); });
+  }
   else if (workTab === 'creations') each('creations', function (id, c) { if (hit([c.title, c.kind, c.for, c.notes])) out.push(creationRow(id, c)); });
   else if (area) {
     if (workTab === 'money') each('sales', function (id, s) { if (hit([s.what, s.unit])) out.push(saleRow(id, s)); });
@@ -6803,7 +6813,7 @@ function renderWork() {
   var list = $('wkList');
   if (!live) { sync(list, 'demo', function () { return '<div class="wempty">Connecting to the hub, sir. The live records appear in a moment.</div>'; }); return; }
   var rows = workRows().slice(0, 300), key = workTab + '|' + workQ + '|' + rows.map(function (r) { return r.html.length; }).join(',') + '|' + Object.keys(workOpen).filter(function (k) { return workOpen[k]; }).join(',');
-  sync(list, key, function () { return rows.length ? rows.map(function (r) { return r.html; }).join('') : '<div class="wempty">Nothing here yet' + (workQ ? ' for “' + esc(workQ) + '”' : '') + '. It fills as the agents write.</div>'; });
+  sync(list, key, function () { return rows.length ? rows.map(function (r) { return r.html; }).join('') : (workTab === 'clients' && !workQ ? '<div class="wempty">No clients yet, sir. A business shows here only once it books or pays you (mark it Booked or Paid on its card, or log the sale).</div>' : '<div class="wempty">Nothing here yet' + (workQ ? ' for “' + esc(workQ) + '”' : '') + '. It fills as the agents write.</div>'); });
 }
 (function () {
   var t = $('wkTabs'), s = $('wkSearch'), l = $('wkList'); if (!t) return;
