@@ -127,7 +127,7 @@
 
   // ---------- microphone ----------
   var stream = null, micNode = null, micSrc = null, micLevel = 0;
-  var WORKLET = "class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.p=0;this.b=new Int16Array(1600);this.n=0;this.e=0;this.c=0}process(i){var x=i[0]&&i[0][0];if(!x)return true;for(var k=0;k<x.length;k++){this.e+=x[k]*x[k];this.c++}var p=this.p;while(p<x.length){var j=Math.floor(p),f=p-j,a=x[j],b=j+1<x.length?x[j+1]:a,v=a+(b-a)*f;v=Math.max(-1,Math.min(1,v));this.b[this.n++]=v<0?v*32768:v*32767;if(this.n===1600){this.port.postMessage({pcm:this.b.buffer,rms:Math.sqrt(this.e/this.c)},[this.b.buffer]);this.b=new Int16Array(1600);this.n=0;this.e=0;this.c=0}p+=this.r}this.p=p-x.length;return true}}registerProcessor('phr-mic',P);";
+  var WORKLET = "class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.p=0;this.b=new Int16Array(800);this.n=0;this.e=0;this.c=0}process(i){var x=i[0]&&i[0][0];if(!x)return true;for(var k=0;k<x.length;k++){this.e+=x[k]*x[k];this.c++}var p=this.p;while(p<x.length){var j=Math.floor(p),f=p-j,a=x[j],b=j+1<x.length?x[j+1]:a,v=a+(b-a)*f;v=Math.max(-1,Math.min(1,v));this.b[this.n++]=v<0?v*32768:v*32767;if(this.n===800){this.port.postMessage({pcm:this.b.buffer,rms:Math.sqrt(this.e/this.c)},[this.b.buffer]);this.b=new Int16Array(800);this.n=0;this.e=0;this.c=0}p+=this.r}this.p=p-x.length;return true}}registerProcessor('phr-mic',P);";
   var workletReady = null;
   function startMic() {
     if (stream) return Promise.resolve();
@@ -221,9 +221,29 @@
         break;
       case 'interruption':
         L('interrupted'); if (AV.on) { try { AV.client.interruptPersona(); AV.inp.endSequence(); } catch (e) {} } stopVoice(); if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); break;
+      case 'client_tool_call':
+        var tc = d.client_tool_call || {}; L('tool ' + tc.tool_name);
+        runTool(tc.tool_name, tc.parameters || {}).then(function (r) { toolResult(tc.tool_call_id, r, false); }, function (e) { toolResult(tc.tool_call_id, String((e && e.message) || e), true); });
+        break;
       case 'ping':
         var p = d.ping_event || {}; setTimeout(function () { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong', event_id: p.event_id })); }, p.ping_ms || 0); break;
     }
+  }
+
+  // ---------- tools he can use mid-conversation ----------
+  // give_task: the hub around this page (the live hub) saves the task for Relay; the page alone cannot.
+  function toolResult(id, result, err) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'client_tool_result', tool_call_id: id, result: result, is_error: !!err })); L('tool result: ' + result); }
+  var taskWait = {};
+  window.addEventListener('message', function (e) { var d = e.data; if (d && d.phr === 'live-task-ack' && taskWait[d.id]) { taskWait[d.id](d); delete taskWait[d.id]; } });
+  function runTool(name, p) {
+    if (name !== 'give_task') return Promise.reject(new Error('unknown tool ' + name));
+    var task = String(p.task || '').trim(); if (!task) return Promise.reject(new Error('the task was empty'));
+    if (window.parent === window) return Promise.reject(new Error('this page is not inside the Command hub, so the task could not be saved; open the hub and say it again'));
+    return new Promise(function (res, rej) {
+      var id = 'k' + Date.now().toString(36); taskWait[id] = function (d) { d.ok ? res('queued: ' + (d.msg || 'Relay has it')) : rej(new Error(d.msg || 'the hub could not save it')); };
+      window.parent.postMessage({ phr: 'live-task', id: id, task: task.slice(0, 1200), agent: String(p.agent || '').toLowerCase().trim() }, '*');
+      setTimeout(function () { if (taskWait[id]) { delete taskWait[id]; rej(new Error('the hub did not answer')); } }, 8000);
+    });
   }
 
   // ---------- live face (Anam): a realistic talking face, lip-synced to his voice ----------

@@ -6343,6 +6343,7 @@ function giveTask(text, agentId) {
   text = keep(text).slice(0, 1200); if (!text && !taskPending.length) return Promise.resolve(false); if (!text) text = 'See the attached files.';
   agentId = A[agentId] ? agentId : 'relay';
   if (MODE !== 'live') { toast('Tasks go to the team in Live. Switch to Live first, sir.', 'info', 'Hub'); return Promise.resolve(false); }
+  if (!HUB.mcp && window.EH_QUEUE_TASK) { taskPending = []; try { renderTaskFiles(); } catch (e) {} return window.EH_QUEUE_TASK(text, agentId).then(function (m) { toast(m, 'info', 'Task'); return true; }, function (e) { toast(String((e && e.message) || e), 'problem', 'Task'); return false; }); }
   if (!canWrite() || !HUB.mcp) { toast('This view cannot start agents, sir. Open the page in Claude as its owner.', 'info', 'Hub'); return Promise.resolve(false); }
   var g = HUBX.agents[agentId];
   if (!g || !g.switchedOn || !g.triggerId) { toast(aname(agentId) + ' is not switched on, so nothing was started.', 'info', 'Hub'); return Promise.resolve(false); }
@@ -6528,6 +6529,31 @@ function renderWork() {
   l.addEventListener('click', function (e) { var st = e.target.closest('[data-wstage]'); if (st) { var pr = st.getAttribute('data-wstage').split('|'); markStage(pr[0], pr[1]); return; } var sb = e.target.closest('[data-wsite]'); if (sb) { openSite(sb.getAttribute('data-wsite')); return; } var b = e.target.closest('[data-wtoggle]'); if (!b) return; var id = b.getAttribute('data-wtoggle'); workOpen[id] = !workOpen[id]; renderWork(); });
 })();
 
+})();
+</script>
+
+<script>
+/* Tasks from the live hub and from Phronesis by voice: saved to the hub's commands as open tasks from Michael.
+   The pickup scheduled task copies each one into the agents' hub and starts Relay (or the named agent). */
+(function () {
+  function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
+  window.EH_QUEUE_TASK = function (text, agent, via) {
+    text = String(text || '').trim().slice(0, 1200); if (!text) return Promise.reject(new Error('The task was empty.'));
+    agent = /^[a-z]{3,14}$/.test(agent || '') ? agent : 'relay';
+    return window.claude.use('db').then(function (db) {
+      if (!db) throw new Error('Sign in to the hub first, sir.');
+      var now = Date.now(), mins = (text.match(/\b(?:in|within)\s+(\d{1,3})\s*(?:min|mins|minutes)\b/i) || [])[1], hrs = (text.match(/\b(?:in|within)\s+(\d{1,2})\s*(?:hr|hrs|hour|hours)\b/i) || [])[1];
+      var due = now + (mins ? +mins * 60000 : hrs ? +hrs * 3600000 : 3 * 3600000), cid = 'v' + now.toString(36);
+      var rec = { agent: agent, type: 'task', text: text, note: via === 'voice' ? 'Task Michael gave Phronesis by voice' : 'Task from Michael on the live hub', from: 'michael', parent: null, hop: 0,
+        createdAt: now, createdBy: 'michael', status: 'open', due: due, dueText: nyFmt(due), via: via || 'livehub', bridge: 'waiting' };
+      return db.doc('commands/' + cid).set(rec).then(function () { return (agent === 'relay' ? 'Relay has it' : agent.charAt(0).toUpperCase() + agent.slice(1) + ' has it') + '. The team picks it up within the hour and starts on it.'; });
+    });
+  };
+  addEventListener('message', function (e) {
+    var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-task' || !f || e.source !== f.contentWindow) return;
+    window.EH_QUEUE_TASK(d.task, d.agent, 'voice').then(function (m) { f.contentWindow.postMessage({ phr: 'live-task-ack', id: d.id, ok: true, msg: m }, '*'); },
+      function (er) { f.contentWindow.postMessage({ phr: 'live-task-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
+  });
 })();
 </script>
 
