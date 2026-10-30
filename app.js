@@ -154,6 +154,29 @@
   function clearIdle() { if (idleT) { clearTimeout(idleT); idleT = null; } }
   function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); } }, IDLE_MS); }
 
+  var GREETS = {
+    morning: ['Good morning, Mr. Evermore.', 'Top of the morning to you, Mr. Evermore.', 'A splendid morning, Mr. Evermore.', 'How do you do this morning, Mr. Evermore?',
+      'Good morning, sir. The team has been busy, Mr. Evermore.', 'A very good morning to you, Mr. Evermore.', 'Morning, sir. I trust you slept well, Mr. Evermore.',
+      'Good day to you, sir. A fine morning for it, Mr. Evermore.', 'Ah, good morning. Shall we begin, Mr. Evermore?', 'Rise and shine, sir. All is in order, Mr. Evermore.'],
+    afternoon: ['Good afternoon, Mr. Evermore.', 'Good day, sir. A splendid afternoon, Mr. Evermore.', 'How do you do, Mr. Evermore?', 'Ah, good afternoon. How does it go, Mr. Evermore?',
+      'Good day to you, Mr. Evermore.', 'A very good afternoon to you, Mr. Evermore.', 'Afternoon, sir. All is in hand, Mr. Evermore.', 'Good afternoon, sir. What can I do for you, Mr. Evermore?',
+      'Splendid to hear from you this afternoon, Mr. Evermore.', 'Good day, sir. At your service, Mr. Evermore.'],
+    evening: ['Good evening, Mr. Evermore.', 'A splendid evening to you, Mr. Evermore.', 'Good evening, sir. How did the day treat you, Mr. Evermore?', 'Ah, good evening. At your service, Mr. Evermore.',
+      'Evening, sir. A full day behind us, Mr. Evermore.', 'How do you do this evening, Mr. Evermore?', 'Good evening, sir. Splendid to hear from you, Mr. Evermore.', 'A very good evening to you, Mr. Evermore.',
+      'Good evening. What is on your mind tonight, Mr. Evermore?', 'Ah, there you are. Good evening, Mr. Evermore.'],
+    late: ['Burning the midnight oil, Mr. Evermore?', 'Still at it, I see. Good evening, Mr. Evermore.', 'A late one tonight, sir. What can I do for you, Mr. Evermore?', 'At your service, whatever the hour, Mr. Evermore.',
+      'Good evening, sir. The night shift reporting, Mr. Evermore.', 'Ah, a night owl tonight. How do you do, Mr. Evermore?', 'Late hours, sir. I am right here, Mr. Evermore.', 'Good evening, sir, or is it good morning by now, Mr. Evermore?'],
+    back: ['Yes, Mr. Evermore?', 'At your service, Mr. Evermore.', 'I am here, Mr. Evermore.', 'Go ahead, Mr. Evermore.', 'Back again, sir. What do you need, Mr. Evermore?', 'Right here, Mr. Evermore.', 'Listening, Mr. Evermore.']
+  };
+  function freshGreeting(first) {
+    var set = first ? period() : 'back', list = GREETS[set], recent = [];
+    try { recent = JSON.parse(localStorage.getItem('phr.recentGreets') || '[]'); } catch (e) {}
+    var choices = list.filter(function (t) { return recent.indexOf(t) < 0; }); if (!choices.length) choices = list;
+    var t = choices[Math.floor(Math.random() * choices.length)];
+    recent.unshift(t); try { localStorage.setItem('phr.recentGreets', JSON.stringify(recent.slice(0, 12))); } catch (e) {}
+    return t;
+  }
+  var greetLine = null, gotVoice = false;
   function connect() {
     return new Promise(function (res, rej) {
       var w = new WebSocket(WS_URL); ws = w; var opened = false; wsState = 'connecting';
@@ -161,7 +184,7 @@
       w.onopen = function () {
         opened = true; wsState = 'open'; L('voice link open');
         var now = new Date();
-        w.send(JSON.stringify({ type: 'conversation_initiation_client_data', dynamic_variables: {} }));
+        w.send(JSON.stringify(greetLine ? { type: 'conversation_initiation_client_data', dynamic_variables: {}, conversation_config_override: { agent: { first_message: greetLine } } } : { type: 'conversation_initiation_client_data', dynamic_variables: {} }));
         w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester, which counts as ' + ({ morning: 'morning', afternoon: 'afternoon', evening: 'evening', late: 'late night (not morning yet)' })[period()] + '. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' }));
         res();
       };
@@ -177,7 +200,7 @@
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
-        var a = d.audio_event || {}; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
+        var a = d.audio_event || {}; if (a.audio_base_64) gotVoice = true; if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
       case 'agent_response':
         say((d.agent_response_event || {}).agent_response || ''); break;
       case 'agent_response_correction':
@@ -267,14 +290,15 @@
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
     var line = first ? NEXT.greet : NEXT.back;
+    greetLine = freshGreeting(first); gotVoice = false; say(greetLine);
     var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () {
-      var b = REC[line];
-      Promise.race([faceP, new Promise(function (r) { setTimeout(function () { r(false); }, 900); })]).then(function () {
-        if (!live) return;
+      setTimeout(function () {   // backup: a recording, only if his live voice has not started
+        if (!live || gotVoice) return;
+        var b = REC[line]; L('live greeting late, using a recording');
         if (b) { say(lineText(line)); if (AV.on) faceBuffer(b); else playBuffer(b, 1); } else onVoiceDone();
-      });
-      setTimeout(function () { prepNext().catch(function () {}); }, 4000);   // a fresh line ready for next time
+      }, 2600);
+      setTimeout(function () { prepNext().catch(function () {}); }, 4000);
     };
     if (head) head.wake(); else pendingAwake();
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
