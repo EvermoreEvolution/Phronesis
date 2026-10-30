@@ -19,7 +19,8 @@ body.dormant #hd,body.dormant #fx,body.dormant #hd3{opacity:0}
 #hd3{transition:opacity 1.2s ease}
 body.h3 #hd,body.h3 #fx{display:none}
 body:not(.h3) #hd3{display:none}
-body:not(.dormant) #gl{opacity:0;pointer-events:none}
+body:not(.dormant) #gl,body:not(.dormant) #lab{opacity:0;pointer-events:none}
+#lab{transition:opacity 1.2s ease}
 #lab{position:absolute;inset:0;pointer-events:none}
 header{position:fixed;top:0;left:0;right:0;padding:calc(14px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 0 max(18px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:center;z-index:5}
 .mark{font:600 22px/1 'Cormorant Garamond',Georgia,serif;letter-spacing:.32em;text-transform:uppercase}
