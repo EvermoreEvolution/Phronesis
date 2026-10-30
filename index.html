@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Phronesis</title>
 <meta name="theme-color" content="#01040b">
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500&display=swap">
 <style>
-:root{--bg:#01040b;--fg:#e8eef8;--dim:#8796ad;--line:rgba(140,190,255,.18);--blue:#7fc4ff;--gold:#ffcf86;--red:#ff7a7a}
+:root{color-scheme:dark;--bg:#01040b;--fg:#e8eef8;--dim:#8796ad;--line:rgba(140,190,255,.18);--blue:#7fc4ff;--gold:#ffcf86;--red:#ff7a7a}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
 #stage{position:fixed;inset:0}
@@ -86,11 +87,11 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 <script src="globe.js?v=1793342314"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
-  import { createHead3D } from './3d/head3d.js?v=1793343921';
+  import { createHead3D } from './3d/head3d.js?v=1793344178';
   const q = new URLSearchParams(location.search);
   window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
   window.PHR3D.catch(() => {});
-  const s = document.createElement('script'); s.src = 'app.js?v=1793343921'; document.body.appendChild(s);
+  const s = document.createElement('script'); s.src = 'app.js?v=1793344178'; document.body.appendChild(s);
 </script>
 </body>
 </html>

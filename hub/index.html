@@ -6547,11 +6547,11 @@ function renderWork() {
   });
   // Clicking Phronesis or the mic wakes the live Phronesis instead of the recorded one
   document.addEventListener('click', function (e) {
-    var t = e.target.closest && e.target.closest('[data-wake], #bMic, #bTalk, [data-focus="phro"]'); if (!t) return;
+    var t = e.target.closest && e.target.closest('[data-wake], #wakeBtn, .wb, #bMic, #bTalk, [data-focus="phro"]'); if (!t) return;
     e.preventDefault(); e.stopPropagation(); window.PHR_LIVE.wake();
   }, true);
   var st = document.createElement('style');
-  st.textContent = 'body.phr-live #hin canvas{opacity:0!important} #bTalk{display:none!important}';
+  st.textContent = 'body.phr-live #hin canvas{opacity:0!important} #bTalk{display:none!important} body.phr-live #stage .wake, body.phr-live #stage .wake-hint, body.phr-live #stage [data-wake]:not(.brand){opacity:0!important;pointer-events:none!important} #phrLive{color-scheme:dark}';
   document.head.appendChild(st);
 })();
 </script>
