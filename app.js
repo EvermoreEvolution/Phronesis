@@ -7,12 +7,8 @@
   var WS_URL = 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=' + AGENT_ID;
   var IDLE_MS = +(Q.get('idle') || 10000);       // silence before he stops listening
   var DEEP = +(Q.get('deep') || 1);              // playback rate for live voice (0.95 = lower, slower)
-  var LINES = {
-    greet_morning: 'Good morning, Mr. Evermore. The team has been at it since before dawn. Shall I give you the brief?',
-    greet_afternoon: 'Good afternoon, Mr. Evermore. All is in order, sir. Ask me anything, or I shall simply carry on.',
-    greet_evening: 'Good evening, Mr. Evermore. A full day behind us. Whenever you are ready, sir.',
-    ready: 'Here, sir.'
-  };
+  var GREET = {"morning": ["Good morning, Mr. Evermore. Top of the morning to you, sir.", "Good morning, sir. I trust you slept well. The team has been busy.", "Top of the morning, sir. Shall we see what the night brought in?", "Morning, Mr. Evermore. A splendid day ahead, I should think.", "Good morning, sir. How does it go?"], "afternoon": ["Good afternoon, Mr. Evermore. How does it go, sir?", "Good day, sir. A splendid afternoon so far.", "Afternoon, Mr. Evermore. What can I do for you?", "Good afternoon, sir. All is in order. Where shall we begin?", "Good day to you, sir. How are things on your end?"], "evening": ["Good evening, Mr. Evermore. A full day behind us.", "Evening, sir. How did the day treat you?", "Good evening, sir. Splendid to hear from you.", "Good evening, Mr. Evermore. What's on your mind tonight?", "Ah, good evening, sir. At your service."], "late": ["Burning the midnight oil, sir? I'm right here.", "Good evening, Mr. Evermore. Still at it, I see.", "A late one tonight, sir. What can I do for you?", "At your service, sir, whatever the hour."], "back": ["Yes, sir?", "At your service, sir.", "I'm here, sir.", "Go ahead, sir.", "Back again, sir. What do you need?"]};   // recorded in Adam deeper, Oct 30
+
   function $(id) { return document.getElementById(id); }
   var body = document.body, cap = $('cap'), chip = $('chip'), st = $('st'), mic = $('mic'), hint = $('hint');
   var log = window.PHR_LOG = [];
@@ -94,8 +90,17 @@
 
   // ---------- recorded lines (Adam deeper) ----------
   var REC = {};
-  function loadLine(k) { return fetch('voice/' + k + '.mp3').then(function (r) { if (!r.ok) throw new Error(k + ' ' + r.status); return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { REC[k] = b; }); }
-  function greetKey() { var h = new Date().getHours(); return h < 5 ? 'greet_evening' : h < 12 ? 'greet_morning' : h < 17 ? 'greet_afternoon' : 'greet_evening'; }
+  function loadLine(k) { return fetch('voice/g/' + k + '.mp3').then(function (r) { if (!r.ok) throw new Error(k + ' ' + r.status); return r.arrayBuffer(); }).then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); }).then(function (b) { REC[k] = b; }); }
+  function period() { var h = new Date().getHours(); return h < 4 ? 'late' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 23 ? 'evening' : 'late'; }
+  function pickLine(set) {   // a different line each time, never the same twice in a row
+    var list = GREET[set], last = null; try { last = localStorage.getItem('phr.last.' + set); } catch (e) {}
+    var choices = list.map(function (t, i) { return set + '_' + i; }).filter(function (k) { return k !== last; });
+    var k = choices[Math.floor(Math.random() * choices.length)]; try { localStorage.setItem('phr.last.' + set, k); } catch (e) {}
+    return k;
+  }
+  function lineText(k) { var m = /^(\w+)_(\d+)$/.exec(k); return m ? GREET[m[1]][+m[2]] : ''; }
+  var NEXT = { greet: null, back: null };
+  function prepNext() { NEXT.greet = pickLine(period()); NEXT.back = pickLine('back'); return Promise.all([loadLine(NEXT.greet), loadLine(NEXT.back)]); }
 
   // ---------- microphone ----------
   var stream = null, micNode = null, micSrc = null, micLevel = 0;
@@ -185,10 +190,11 @@
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
-    var line = first ? greetKey() : 'ready';
+    var line = first ? NEXT.greet : NEXT.back;
     pendingAwake = function () {
       var b = REC[line];
-      if (b) { say(LINES[line]); playBuffer(b, 1); } else onVoiceDone();
+      if (b) { say(lineText(line)); playBuffer(b, 1); } else onVoiceDone();
+      setTimeout(function () { prepNext().catch(function () {}); }, 4000);   // a fresh line ready for next time
     };
     if (head) head.wake(); else pendingAwake();
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
@@ -235,7 +241,7 @@
   // ---------- load everything before the first word ----------
   function imgP(src) { return new Promise(function (r) { var i = new Image(); i.onload = i.onerror = r; i.src = src; }); }
   var lmsg = $('lmsg');
-  Promise.all([loadLine(greetKey()), loadLine('ready'), imgP(IMG.hero), imgP(IMG.glow), new Promise(function (r) { setTimeout(r, 600); })])
+  Promise.all([prepNext(), imgP(IMG.hero), imgP(IMG.glow), new Promise(function (r) { setTimeout(r, 600); })])
     .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; if (autoWake) { autoWake = false; $('load').classList.add('gone'); greeted = true; wake(true); } })
     .catch(function (e) { L('load ' + e.message); $('load').classList.add('ready'); lmsg.textContent = 'Ready (some sounds missing).'; });
   $('go').addEventListener('click', function () { $('load').classList.add('gone'); greeted = true; wake(true); });
