@@ -91,7 +91,7 @@
 
 </script>
 
-<div id="ehSign" hidden style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(1,4,11,.92);font:15px/1.5 system-ui,sans-serif;color:#e8eef8">
+<div id="ehSign" hidden style="position:fixed;inset:0;z-index:9999;display:none;place-items:center;background:rgba(1,4,11,.92);font:15px/1.5 system-ui,sans-serif;color:#e8eef8">
   <form id="ehForm" style="width:min(360px,90vw);display:flex;flex-direction:column;gap:12px;padding:26px;border:1px solid rgba(127,196,255,.3);border-radius:16px;background:#050c1a">
     <div style="font:600 22px/1 Georgia,serif;letter-spacing:.3em">PHRONESIS</div>
     <div style="color:#8796ad">Command center. Sign in with your email; a one-time link arrives in your inbox.</div>
@@ -103,8 +103,8 @@
 <script>
 (function () {
   var box = document.getElementById('ehSign'), f = document.getElementById('ehForm'), msg = document.getElementById('ehMsg');
-  if (!window.HUBDB || !window.HUBDB.client) { box.hidden = false; msg.textContent = 'The hub database is not set up yet.'; return; }
-  window.HUBDB.signedIn().then(function (ok) { box.hidden = !!ok; });
+  if (!window.HUBDB || !window.HUBDB.client) { box.hidden = false; box.style.display = 'grid'; msg.textContent = 'The hub database is not set up yet.'; return; }
+  window.HUBDB.signedIn().then(function (ok) { box.hidden = !!ok; box.style.display = ok ? 'none' : 'grid'; });
   f.addEventListener('submit', function (e) { e.preventDefault(); msg.textContent = 'Sending…';
     window.HUBDB.signIn(document.getElementById('ehEmail').value.trim()).then(function (r) { msg.textContent = r && r.error ? ('Could not send: ' + r.error.message) : 'Check your email and open the link on this device.'; }); });
   window.HUBDB.client.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_IN') location.reload(); });
