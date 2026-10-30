@@ -638,6 +638,7 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 /* the 3D head replaces the photo head when it has loaded */
 #hd3 { opacity: 1; }
 .h3on #hd, .h3on #fx { opacity: 0 !important; }
+.wc .osum { margin: 0 0 8px; color: var(--ink, #e8eef8); line-height: 1.5; } .wc .onext { margin: 0 0 8px; color: #ffcf86; } .wc .olinks { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 8px; } .wc .cthumb { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; margin: 0 0 10px; object-fit: contain; background: rgba(255,255,255,.04); } .wc .acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
 
 </style>
 <div id="app" data-view="command">
@@ -4776,7 +4777,7 @@ var HUBX = { agents: {}, runs: {}, needs: {}, leads: {}, sales: {}, reports: {},
 var HUB = { db: null, user: null, sample: null, mcp: null, caps: { db: 'pending', user: 'pending', sample: 'pending', mcp: 'pending' }, canEdit: false,
   loaded: {}, subs: [], errs: [], lastAt: 0, announce: [], diagDone: false, testing: null, p4: false, speakUp: store('phr.speakup') !== '0', lastSpoke: 0,
   q: {}, toasted: {}, connectedAt: Date.now(), timer: null, ctl: null, sampleBusy: false };
-var HCOLL = ['agents', 'runs', 'needs', 'leads', 'sales', 'reports', 'meta', 'commands', 'sites', 'audio'];
+var HCOLL = ['agents', 'runs', 'needs', 'leads', 'sales', 'reports', 'meta', 'commands', 'sites', 'audio', 'opps', 'creations'];
 window.PHR_LIVE_URL = 'https://evermoreevolution.github.io/Phronesis/';
 /* Phronesis's recorded voice (ElevenLabs, Adam deeper, chosen by Michael Oct 29 9:18 pm): fixed lines as own files */
 var VOICE = { greet_morning: { src: 'voice/greet_morning.mp3', dur: 5.9, text: 'Good morning, Mr. Evermore. The team has been at it since before dawn. Shall I give you the brief?' }, greet_afternoon: { src: 'voice/greet_afternoon.mp3', dur: 5.9, text: 'Good afternoon, Mr. Evermore. All is in order, sir. Ask me anything, or I shall simply carry on.' }, greet_evening: { src: 'voice/greet_evening.mp3', dur: 5.3, text: 'Good evening, Mr. Evermore. A full day behind us. Whenever you are ready, sir.' }, ready: { src: 'voice/ready.mp3', dur: 0.8, text: 'Here, sir.' }, done: { src: 'voice/done.mp3', dur: 1.8, text: 'Very good, sir. At your leisure.' }, thinking: { src: 'voice/thinking.mp3', dur: 1.0, text: 'One moment, sir.' } };
@@ -5755,6 +5756,8 @@ function hubSubscribe() {
   sub('commands', db.collection('commands').orderBy('createdAt', 'desc').limit(120));
   sub('audio', db.collection('audio').limit(6));
   sub('sites', db.collection('sites').orderBy('builtAt', 'desc').limit(100));
+  sub('opps', db.collection('opps').limit(300));
+  sub('creations', db.collection('creations').limit(300));
 }
 function hubLoaded() { return HCOLL.every(function (c) { return HUB.loaded[c] === true || HUB.loaded[c] === 'error'; }); }
 function hubHasAgents() { return Object.keys(HUBX.agents).length > 0; }
@@ -6443,7 +6446,7 @@ function postWorldLive(force) {
 
 /* ---------- WORK: every record the agents have written, in tabs, live from the hub ---------- */
 var workTab = 'leads', workQ = '', workOpen = {};
-var WTABS = [['leads', 'Leads'], ['websites', 'Websites'], ['content', 'Content'], ['opps', 'Opportunities'], ['clients', 'Clients'], ['money', 'Money'], ['tasks', 'Tasks'], ['runs', 'Runs'], ['needs', 'Needs']];
+var WTABS = [['leads', 'Leads'], ['websites', 'Websites'], ['creations', 'Creations'], ['content', 'Content'], ['opps', 'Opportunities'], ['clients', 'Clients'], ['money', 'Money'], ['tasks', 'Tasks'], ['runs', 'Runs'], ['needs', 'Needs']];
 var AREA = { websites: { agents: ['builder', 'launch', 'scribe'], units: ['evolution'] }, content: { agents: ['studio', 'canvas', 'spotlight', 'herald', 'signal', 'compass'] }, opps: { agents: ['radar', 'analyst', 'dispatch', 'architect'] }, clients: { agents: ['care', 'courier', 'echo', 'brief'] }, money: { agents: ['ledger'] } };
 var workUnit = 'all';
 function wLink(u) { u = keep(u); if (!/^https?:\/\//i.test(u)) return ''; var h = u.replace(/^https?:\/\//i, '').split('/')[0]; return '<a class="wl" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(h) + ' ↗</a>'; }
@@ -6474,6 +6477,21 @@ function markStage(id, stage) {
 }
 function leadRow(id, l) { return { ts: toMs(l.updatedAt) || toMs(l.createdAt), html: wCard(id, l, keep(l.business) || id, [l.category || l.group || '', l.address || '', l.phone || ''].filter(Boolean).join(' · '), { text: l.stage || 'found', cls: 'st-' + (l.stage || 'found') }, ['business', 'stage', 'unit', 'fit', 'phone', 'address', 'rating', 'reviews', 'hours', 'source', 'notes'], stageStrip(id, l)) }; }
 function cmdRow(id, c) { return { ts: toMs(c.createdAt), html: wCard(id, c, (c.type === 'task' ? keep(c.text).slice(0, 110) : 'Run now: ' + aname(c.agent)), 'to ' + aname(c.agent) + ' · from ' + (c.from === 'michael' || c.createdBy === 'michael' ? 'you' : aname(c.from || c.createdBy)) + ' · ' + dayLab(toMs(c.createdAt)) + (c.dueText && c.status !== 'done' ? ' · due ' + keep(c.dueText).replace(/ New York$/, '') : ''), { text: c.status === 'done' ? 'done' : (c.due && toMs(c.due) < Date.now() ? 'overdue' : (c.status || 'open')), cls: c.status === 'done' ? 'st-done' : (c.due && toMs(c.due) < Date.now() ? 'st-bad' : 'st-on') }, ['text', 'agent', 'from', 'status', 'dueText', 'result', 'hop', 'parent', 'createdAt', 'doneAt']) }; }
+/* Opportunities: only the opportunities themselves (Radar writes one opps record per find), best first */
+var OPPRANK = { approved: 0, testing: 1, new: 2, watching: 3, dropped: 9 };
+function oppRow(id, o) {
+  var st = o.status || 'new', lab = [o.category, o.income ? 'income ' + o.income : '', o.startCost ? 'start ' + o.startCost : '', o.risk ? 'risk ' + o.risk : ''].filter(Boolean).join(' · ');
+  var links = (Array.isArray(o.proof) ? o.proof : (o.proof ? [o.proof] : [])).map(function (u) { return wLink(u); }).filter(Boolean).join(' ');
+  var extra = (o.summary ? '<p class="osum">' + esc(keep(o.summary)) + '</p>' : '') + (o.next ? '<p class="onext"><b>Next:</b> ' + esc(keep(o.next)) + '</p>' : '') + (links ? '<p class="olinks">' + links + '</p>' : '');
+  return { ts: (9 - (OPPRANK[st] == null ? 5 : OPPRANK[st])) * 1e13 + (toMs(o.foundAt) || 0), html: wCard(id, o, keep(o.title) || 'Opportunity', lab + ' · ' + aname(o.agent || 'radar') + ' · ' + dayLab(toMs(o.foundAt) || Date.now()), { text: st, cls: st === 'approved' || st === 'testing' ? 'st-on' : st === 'dropped' ? '' : 'st-need' }, ['title', 'category', 'summary', 'income', 'startCost', 'risk', 'confidence', 'status', 'next', 'proof', 'plan', 'agent', 'foundAt'], extra) };
+}
+/* Creations: every design, mockup, graphic or file an agent made, with open and download buttons */
+function creationRow(id, c) {
+  var btn = function (u, t) { u = keep(u); return /^https?:\/\//i.test(u) ? '<a class="btn sm" href="' + esc(u) + '" target="_blank" rel="noopener">' + t + '</a>' : ''; };
+  var thumb = /^https?:\/\//i.test(keep(c.thumb)) ? '<img class="cthumb" src="' + esc(keep(c.thumb)) + '" alt="" loading="lazy">' : '';
+  var extra = thumb + '<div class="acts">' + btn(c.url, 'Open') + btn(c.editUrl, 'Edit in Canva') + btn(c.downloadUrl, 'Download') + '</div>' + (c.downloadUrl ? '<small class="hint">Download links from Canva expire after a while; Edit in Canva always works and downloads in any format.</small>' : '');
+  return { ts: toMs(c.at), html: wCard(id, c, keep(c.title) || 'Creation', (c.kind || 'design') + ' · ' + aname(c.agent || 'canvas') + ' · ' + dayLab(toMs(c.at)), { text: c.kind || 'design', cls: 'st-done' }, ['title', 'kind', 'for', 'tool', 'status', 'notes', 'at'], extra) };
+}
 function repRow(id, r) { return { ts: toMs(r.at), html: wCard(id, r, keep(r.title) || 'Report', aname(r.agent) + ' · ' + (r.kind || '') + ' · ' + dayLab(toMs(r.at)), { text: r.kind || 'report', cls: '' }, ['title', 'agent', 'kind', 'body', 'at', 'command']) }; }
 function runRow(id, r) { return { ts: toMs(r.startedAt), html: wCard(id, r, aname(r.agent) + ': ' + (keep(r.summary) || (r.status === 'running' ? 'running now' : 'no summary')), dayLab(toMs(r.startedAt)) + (toMs(r.endedAt) ? ' to ' + clk(toMs(r.endedAt)) : '') + (r.to ? ' · to ' + aname(r.to) : ''), { text: r.status || '', cls: r.status === 'problem' ? 'st-problem' : r.status === 'running' ? 'st-on' : 'st-done' }, ['agent', 'status', 'summary', 'startedAt', 'endedAt', 'to', 'handoffs']) }; }
 function needRow(id, n) { return { ts: toMs(n.createdAt), html: wCard(id, n, keep(n.text) || 'Need', aname(n.agent) + ' · level ' + (n.level || 1) + ' · ' + dayLab(toMs(n.createdAt)), { text: n.status || 'pending', cls: n.status === 'pending' ? 'st-need' : 'st-done' }, ['text', 'agent', 'kind', 'level', 'status', 'preview', 'unit', 'lead', 'createdAt', 'decidedAt', 'decidedHow']) }; }
@@ -6497,6 +6515,8 @@ function workRows() {
   else if (workTab === 'tasks') each('commands', function (id, c) { if (hit([c.text, c.agent, c.from, c.result])) out.push(cmdRow(id, c)); });
   else if (workTab === 'runs') each('runs', function (id, r) { if (hit([r.summary, r.agent, r.status])) out.push(runRow(id, r)); });
   else if (workTab === 'needs') each('needs', function (id, n) { if (hit([n.text, n.preview, n.agent])) out.push(needRow(id, n)); });
+  else if (workTab === 'opps') each('opps', function (id, o) { if (hit([o.title, o.category, o.summary, o.status, o.next])) out.push(oppRow(id, o)); });
+  else if (workTab === 'creations') each('creations', function (id, c) { if (hit([c.title, c.kind, c.for, c.notes])) out.push(creationRow(id, c)); });
   else if (area) {
     if (workTab === 'money') each('sales', function (id, s) { if (hit([s.what, s.unit])) out.push(saleRow(id, s)); });
     if (workTab === 'websites') each('sites', function (id, s) { if (hit([s.business, s.kind, s.status, s.notes])) out.push(siteRow(id, s)); });
