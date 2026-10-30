@@ -5300,7 +5300,7 @@ function loadWorld() {
       giveTask(txt, to).then(function (ok) { ack(ok, ok ? (to === 'relay' ? 'Relay has it and will pass it to the right agent.' : aname(to) + ' has started on it.') : 'Not sent. The Command page explains why at the top.'); if (ok) setTimeout(function () { postWorldLive(true); }, 1500); }, function () { ack(false, 'Not sent.'); });
     }
   });
-  window.addEventListener('message', function (e) { if (e.data && e.data.phr === 'world-ready') { got = true; $('wfall').hidden = true; setTimeout(function () { postWorldLive(true); }, 400); } });
+  window.addEventListener('message', function (e) { if (e.data && e.data.phr === 'world-ready') { got = true; $('wfall').hidden = true; [400, 2500, 6000, 12000].forEach(function (ms) { setTimeout(function () { postWorldLive(true); }, ms); }); } });
   f.src = 'world.html';
   setTimeout(function () { if (!got) $('wfall').hidden = false; }, 9000);
 }
