@@ -6197,7 +6197,7 @@ function writeDiag() {
 /* ---------- Demo / Live ---------- */
 function setDataMode(m) {
   if (m === MODE) return;
-  if (m === 'live' && !HUB.db) { toast(HUB.caps.db === 'pending' ? 'Still connecting to the hub, sir. Try again in a moment.' : 'The hub cannot be reached from this view. Live works when the page is open in Claude as its owner.', 'info', 'Hub'); renderModeUI(); return; }
+  if (m === 'live' && !HUB.db && HUB.caps.db !== 'pending' && !HUB.boot) { toast(HUB.caps.db === 'pending' ? 'Still connecting to the hub, sir. Try again in a moment.' : 'The hub cannot be reached from this view. Live works when the page is open in Claude as its owner.', 'info', 'Hub'); renderModeUI(); return; }
   if (m === 'live') {
     demoStash = { runs: runs, events: events, needs: needs, decided: decided, ovr: ovr, prefs: prefs, nid: nid, t: SIM.t, paused: SIM.paused };
     MODE = 'live'; runs = []; events = []; needs = []; decided = []; ovr = {}; nid = 0; rebuildLive();
@@ -6532,6 +6532,8 @@ function hubInit() {
   setInterval(announceTick, 2000);
   hubConnect(); renderModeUI();
   /* Michael, Oct 30, 4:02 pm: "We're staying live." The page always opens live; the demo day is retired. */
+  /* and live from the very first paint, before the hub answers (Oct 30, 6:46 pm: the phone showed the demo day while loading) */
+  HUB.boot = true; try { setDataMode('live'); } catch (e) { logErr('boot live: ' + (e && e.message)); } HUB.boot = false;
   try { if (store('phr.mode') === 'demo') store('phr.mode', 'live'); } catch (e) {}
   if (true) { var tries = 0, iv = setInterval(function () { tries++; if (HUB.db && hubLoaded()) { clearInterval(iv); if (MODE !== 'live') setDataMode('live'); } else if (tries > 240 || HUB.caps.db === 'none') clearInterval(iv); }, 500); }
 }
