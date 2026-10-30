@@ -71,7 +71,7 @@ void main(){
   float bp = fract(vPos.y * 1.1 - uTime * 0.16); float band = smoothstep(0.0, 0.012, bp) * (1.0 - smoothstep(0.012, 0.05, bp));
   float lum = dot(col, vec3(0.3, 0.55, 0.15));
   // face and hair: real colour, cooled, soft blue rim only at the silhouette
-  vec3 face = mix(real, real * vec3(0.85, 0.96, 1.16), 0.55) * scan + uTint * (pow(fr, 1.6) * 0.7 + band * 0.10);
+  vec3 face = mix(real, real * vec3(0.88, 0.97, 1.12), 0.45) * (0.99 + 0.01 * scan) + uTint * (pow(fr, 2.2) * 0.55 + band * 0.04);
   // suit: Michael's Phronesis uniform (black, gold piping) painted from his reference sheet, with thin blue light strips
   vec3 sc = (texture2D(tSuit, suF(vPos)).rgb * wf + texture2D(tSuit, suS(vPos)).rgb * ws + texture2D(tSuit, suB(vPos)).rgb * wb) / max(wf + wb + ws, 1e-3);
   float sl = dot(sc, vec3(0.3, 0.55, 0.15));
