@@ -129,7 +129,7 @@
   // ---------- conversation ----------
   var ws = null, live = false, sending = false, convId = null, idleT = null, pendingAwake = null, greeted = false;
   function clearIdle() { if (idleT) { clearTimeout(idleT); idleT = null; } }
-  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Tap or say "Phronesis" when you need me.'); } }, IDLE_MS); }
+  function armIdle() { clearIdle(); idleT = setTimeout(function () { if (live && !playing.length) { L('idle sleep'); sleep('Resting. Say "Hello Phronesis" or tap when you need me.'); } }, IDLE_MS); }
 
   function connect() {
     return new Promise(function (res, rej) {
@@ -233,7 +233,7 @@
 
   // ---------- controls ----------
   mic.addEventListener('click', function () {
-    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Tap or say "Phronesis" when you need me.'); }
+    if (live) { if (playing.length) { stopVoice(); onVoiceDone(); } else sleep('Resting. Say "Hello Phronesis" or tap when you need me.'); }
     else wake(!greeted && (greeted = true));
   });
   document.addEventListener('visibilitychange', function () { if (document.hidden && live) sleep(''); });
