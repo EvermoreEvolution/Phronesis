@@ -644,6 +644,14 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 
 .wc .agrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 0 0 10px; } .wc .abox { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; background: rgba(255,255,255,.02); } .wc .abox > b { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold, #e4be7b); } .wc .abox > span { color: var(--mute, #8796ad); font-size: 13px; } .wc .ascript { margin: 0; white-space: pre-wrap; line-height: 1.5; } .wc .ainfo { margin: 0 0 8px; color: var(--mute, #8796ad); font-size: 13px; }
 
+/* Live only (Michael, Oct 30): the demo switch is retired */
+#modeSw { display: none !important; }
+
+/* Creations show the design itself (Michael, Oct 30) */
+.wc .cpic { padding: 0 16px 4px; }
+.wc .cpic img { display: block; width: 100%; max-width: 420px; max-height: 420px; object-fit: contain; border-radius: 10px; border: 1px solid rgba(255,255,255,.08); background: #0d0a14; cursor: zoom-in; }
+.wc .cacts { padding: 8px 16px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+
 </style>
 <div id="app" data-view="command">
   <aside class="nav panel" aria-label="Main navigation">
@@ -5962,7 +5970,7 @@ function hubChanged() {
     if (!HUB.diagDone && HUB.db && hubLoaded()) writeDiag();
     checkTest();
     // first visit: open in Live once the agents have started to report, unless he has chosen
-    if (!HUB.autoChecked && hubLoaded()) { HUB.autoChecked = true; if (store('phr.mode') !== 'demo' && MODE !== 'live') setDataMode('live'); }
+    if (!HUB.autoChecked && hubLoaded()) { HUB.autoChecked = true; if (MODE !== 'live') setDataMode('live'); }
     if (view === 'settings') renderSettings();
   }, 90);
 }
@@ -6500,7 +6508,7 @@ function hubCardHtml() {
 
 /* ---------- events for the hub parts of the page ---------- */
 document.addEventListener('click', function (e) {
-  var m = e.target.closest('[data-dsrc]'); if (m) { setDataMode(m.getAttribute('data-dsrc')); return; }
+  var m = e.target.closest('[data-dsrc]'); if (m) { setDataMode('live'); return; }
   if (e.target.closest('[data-testrun]')) { runTest(); return; }
   var sw = e.target.closest('[data-speakup]'); if (sw) { HUB.speakUp = !HUB.speakUp; store('phr.speakup', HUB.speakUp ? '1' : '0'); renderSettings(); }
 });
@@ -6514,7 +6522,9 @@ function hubInit() {
   HUB.timer = setInterval(function () { if (MODE === 'live') { rebuildLive(); renderUpd(); } announceTick(); }, 4000);
   setInterval(announceTick, 2000);
   hubConnect(); renderModeUI();
-  if (store('phr.mode') !== 'demo') { var tries = 0, iv = setInterval(function () { tries++; if (HUB.db && hubLoaded()) { clearInterval(iv); if (MODE !== 'live') setDataMode('live'); } else if (tries > 240 || HUB.caps.db === 'none') clearInterval(iv); }, 500); }
+  /* Michael, Oct 30, 4:02 pm: "We're staying live." The page always opens live; the demo day is retired. */
+  try { if (store('phr.mode') === 'demo') store('phr.mode', 'live'); } catch (e) {}
+  if (true) { var tries = 0, iv = setInterval(function () { tries++; if (HUB.db && hubLoaded()) { clearInterval(iv); if (MODE !== 'live') setDataMode('live'); } else if (tries > 240 || HUB.caps.db === 'none') clearInterval(iv); }, 500); }
 }
 window.__phrHub = { playVoice: playVoice, VOICE: VOICE, startLewis: startLewis, lewisHint: lewisHint, HUB: HUB, HUBX: HUBX, rebuildLive: rebuildLive, setDataMode: setDataMode, compose: compose, digest: digest, synthTrack: synthTrack, speakLive: speakLive, announceTick: announceTick, pushUpdate: pushUpdate, askClaude: askClaude, mode: function () { return MODE; } };
 hubInit();
@@ -6537,7 +6547,7 @@ function uploadAttachments() {
 function giveTask(text, agentId) {
   text = keep(text).slice(0, 1200); if (!text && !taskPending.length) return Promise.resolve(false); if (!text) text = 'See the attached files.';
   agentId = A[agentId] ? agentId : 'relay';
-  if (MODE !== 'live') { toast('Tasks go to the team in Live. Switch to Live first, sir.', 'info', 'Hub'); return Promise.resolve(false); }
+  if (MODE !== 'live') { toast('Still connecting to the hub, sir. Try again in a moment.', 'info', 'Hub'); return Promise.resolve(false); }
   if (!HUB.mcp && window.EH_QUEUE_TASK) { taskPending = []; try { renderTaskFiles(); } catch (e) {} return window.EH_QUEUE_TASK(text, agentId).then(function (m) { toast(m, 'info', 'Task'); return true; }, function (e) { toast(String((e && e.message) || e), 'problem', 'Task'); return false; }); }
   if (!canWrite() || !HUB.mcp) { toast('This view cannot start agents, sir. Open the page in Claude as its owner.', 'info', 'Hub'); return Promise.resolve(false); }
   var g = HUBX.agents[agentId];
@@ -6650,11 +6660,11 @@ function wField(k, v) {
   return '<div class="wf"><span>' + esc(k) + '</span><em>' + esc(s.slice(0, 600)) + '</em></div>';
 }
 var HIDE = { id: 1, version: 1 };
-function wCard(id, d, head, sub, badge, order, extra) {
-  var open = !!workOpen[id], keys = Object.keys(d).filter(function (k) { return !HIDE[k]; });
+function wCard(id, d, head, sub, badge, order, extra, always) {
+  var open = !!workOpen[id], keys = Object.keys(d).filter(function (k) { return !HIDE[k] && !(typeof d[k] === 'string' && /^data:/.test(d[k])); });
   var first = (order || []).filter(function (k) { return keys.indexOf(k) >= 0; }), rest = keys.filter(function (k) { return first.indexOf(k) < 0; }).sort();
   var body = first.concat(rest).map(function (k) { return wField(k, d[k]); }).join('');
-  return '<article class="wc' + (open ? ' open' : '') + '" data-wid="' + esc(id) + '"><button class="wh" data-wtoggle="' + esc(id) + '"><span class="wb ' + esc(badge.cls || '') + '">' + esc(badge.text) + '</span><b>' + esc(head) + '</b><small>' + esc(sub) + '</small><i>' + (open ? '−' : '+') + '</i></button>' + (open ? '<div class="wd">' + (extra || '') + body + '<div class="wid">id ' + esc(id) + '</div></div>' : '') + '</article>';
+  return '<article class="wc' + (open ? ' open' : '') + '" data-wid="' + esc(id) + '"><button class="wh" data-wtoggle="' + esc(id) + '"><span class="wb ' + esc(badge.cls || '') + '">' + esc(badge.text) + '</span><b>' + esc(head) + '</b><small>' + esc(sub) + '</small><i>' + (open ? '−' : '+') + '</i></button>' + (always || '') + (open ? '<div class="wd">' + (extra || '') + body + '<div class="wid">id ' + esc(id) + '</div></div>' : '') + '</article>';
 }
 var MARKS = [['sent', 'Sent'], ['replied', 'Replied'], ['booked', 'Booked'], ['paid', 'Paid'], ['lost', 'Not interested']];
 function stageStrip(id, l) {
@@ -6707,13 +6717,25 @@ function oppRow(id, o) {
 /* Creations: every design, mockup, graphic or file an agent made, with open and download buttons */
 function creationRow(id, c) {
   var btn = function (u, t) { u = keep(u); return /^https?:\/\//i.test(u) ? '<a class="btn sm" href="' + esc(u) + '" target="_blank" rel="noopener">' + t + '</a>' : ''; };
-  var thumb = /^https?:\/\//i.test(keep(c.thumb)) ? '<img class="cthumb" src="' + esc(keep(c.thumb)) + '" alt="" loading="lazy">' : '';
-  var extra = thumb + '<div class="acts">' + btn(c.url, 'Open') + btn(c.editUrl, 'Edit in Canva') + btn(c.downloadUrl, 'Download') + '</div>' + (c.downloadUrl ? '<small class="hint">Download links from Canva expire after a while; Edit in Canva always works and downloads in any format.</small>' : '');
-  return { ts: toMs(c.at), html: wCard(id, c, keep(c.title) || 'Creation', (c.kind || 'design') + ' · ' + aname(c.agent || 'canvas') + ' · ' + dayLab(toMs(c.at)), { text: c.kind || 'design', cls: 'st-done' }, ['title', 'kind', 'for', 'tool', 'status', 'notes', 'at'], extra) };
+  /* Canvas often stores the finished image in the record itself (file: data:image/...); show it, open it full size, and download it where the page allows */
+  var img = typeof c.file === 'string' && /^data:image\//.test(c.file) ? c.file : '';
+  var th = img || (/^https?:\/\//i.test(keep(c.thumb)) ? keep(c.thumb) : '');
+  var thumb = th ? '<img class="cthumb" src="' + esc(th) + '" alt="' + esc(keep(c.title) || 'Design') + '" loading="lazy" data-wimg="' + esc(id) + '">' : '';
+  var dl = img ? (HUB.mcp ? '<a class="btn sm" href="https://evermoreevolution.github.io/Phronesis/hub/" target="_blank" rel="noopener" title="Claude\u2019s viewer blocks downloads; the live hub lets you save it">Download on the live hub \u2197</a>' : '<a class="btn sm" href="' + esc(img) + '" download="' + esc(keep(c.fileName) || (id + '.jpg')) + '">Download</a>') : '';
+  var pic = th ? '<div class="cpic"><img src="' + esc(th) + '" alt="' + esc(keep(c.title) || 'Design') + '" loading="lazy" data-wimg="' + esc(id) + '"></div>' : '';
+  thumb = '';
+  var extra = thumb + '<div class="acts">' + (img ? '<button class="btn gold sm" data-wimg="' + esc(id) + '">Open full size</button>' : '') + btn(c.url, 'Open') + btn(c.editUrl, 'Edit in Canva') + btn(c.downloadUrl, 'Download') + dl + '</div>' + (c.downloadUrl ? '<small class="hint">Download links from Canva expire after a while; Edit in Canva always works and downloads in any format.</small>' : '');
+  return { ts: toMs(c.at), html: wCard(id, c, keep(c.title) || 'Creation', (c.kind || 'design') + ' · ' + aname(c.agent || 'canvas') + ' · ' + dayLab(toMs(c.at)), { text: c.kind || 'design', cls: 'st-done' }, ['title', 'kind', 'for', 'tool', 'status', 'notes', 'at'], extra, pic ? pic + '<div class="acts cacts">' + (img ? '<button class="btn gold sm" data-wimg="' + esc(id) + '">Open full size</button>' : '') + dl + '</div>' : '') };
 }
 function repRow(id, r) { return { ts: toMs(r.at), html: wCard(id, r, keep(r.title) || 'Report', aname(r.agent) + ' · ' + (r.kind || '') + ' · ' + dayLab(toMs(r.at)), { text: r.kind || 'report', cls: '' }, ['title', 'agent', 'kind', 'body', 'at', 'command']) }; }
 function runRow(id, r) { return { ts: toMs(r.startedAt), html: wCard(id, r, aname(r.agent) + ': ' + (keep(r.summary) || (r.status === 'running' ? 'running now' : 'no summary')), dayLab(toMs(r.startedAt)) + (toMs(r.endedAt) ? ' to ' + clk(toMs(r.endedAt)) : '') + (r.to ? ' · to ' + aname(r.to) : ''), { text: r.status || '', cls: r.status === 'problem' ? 'st-problem' : r.status === 'running' ? 'st-on' : 'st-done' }, ['agent', 'status', 'summary', 'startedAt', 'endedAt', 'to', 'handoffs']) }; }
 function needRow(id, n) { return { ts: toMs(n.createdAt), html: wCard(id, n, keep(n.text) || 'Need', aname(n.agent) + ' · level ' + (n.level || 1) + ' · ' + dayLab(toMs(n.createdAt)), { text: n.status || 'pending', cls: n.status === 'pending' ? 'st-need' : 'st-done' }, ['text', 'agent', 'kind', 'level', 'status', 'preview', 'unit', 'lead', 'createdAt', 'decidedAt', 'decidedHow']) }; }
+function openImg(id) {
+  var c = (HUBX.creations || {})[id] || (HUB.data && HUB.data.creations && HUB.data.creations[id]); if (!c || !c.file) return;
+  var m = $('siteView'); $('siteTitle').textContent = keep(c.title) || 'Design';
+  $('siteFrame').srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#0d0a14;display:grid;place-items:center}img{max-width:100%;max-height:100vh;object-fit:contain}</style><img src="' + String(c.file).replace(/"/g, '&quot;') + '" alt="">';
+  m.hidden = false;
+}
 function siteRow(id, s) {
   var kind = s.kind || 'demo', st = s.status || 'built', hasHtml = typeof s.html === 'string' && s.html.length > 50, link = /^https?:\/\//i.test(s.link || '') ? s.link : '';
   var acts = (hasHtml ? '<button class="btn gold sm" data-wsite="' + esc(id) + '">Open the site</button>' : '') + (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Open link ↗</a>' : '') + (!hasHtml && !link ? '<span class="st">' + esc(keep(s.file ? 'File: ' + s.file : 'No file or link in the hub yet')) + '</span>' : '');
@@ -6752,12 +6774,12 @@ function workRows() {
 function workCounts() { var c = {}, keepTab = workTab, keepQ = workQ, keepU = workUnit; workQ = ''; workUnit = 'all'; WTABS.forEach(function (t) { workTab = t[0]; c[t[0]] = workRows().length; }); workTab = keepTab; workQ = keepQ; workUnit = keepU; return c; }
 function renderWork() {
   var live = MODE === 'live', c = live ? workCounts() : {};
-  $('wkNote').textContent = live ? 'Every record the agents have written in the hub, as it lands. Tap a row for all its details and source links.' : 'Work shows the hub in Live. Switch to Live at the top to see real records.';
+  $('wkNote').textContent = live ? 'Every record the agents have written in the hub, as it lands. Tap a row for all its details and source links.' : 'Connecting to the hub, sir. The live records appear in a moment.';
   sync($('wkTabs'), workTab + JSON.stringify(c), function () { return WTABS.map(function (t) { return '<button class="chip" data-wtab="' + t[0] + '" aria-pressed="' + (t[0] === workTab) + '">' + t[1] + (live ? ' <b>' + (c[t[0]] || 0) + '</b>' : '') + '</button>'; }).join(''); });
   var u = $('wkUnits'); u.hidden = !(live && workTab === 'leads');
   if (!u.hidden) sync(u, workUnit, function () { return [['all', 'All'], ['evolution', 'Websites'], ['visuals', 'Visuals'], ['mev', 'Mev']].map(function (x) { return '<button class="chip" data-wunit="' + x[0] + '" aria-pressed="' + (x[0] === workUnit) + '">' + x[1] + '</button>'; }).join(''); });
   var list = $('wkList');
-  if (!live) { sync(list, 'demo', function () { return '<div class="wempty">Switch to Live to see the real records.</div>'; }); return; }
+  if (!live) { sync(list, 'demo', function () { return '<div class="wempty">Connecting to the hub, sir. The live records appear in a moment.</div>'; }); return; }
   var rows = workRows().slice(0, 300), key = workTab + '|' + workQ + '|' + rows.map(function (r) { return r.html.length; }).join(',') + '|' + Object.keys(workOpen).filter(function (k) { return workOpen[k]; }).join(',');
   sync(list, key, function () { return rows.length ? rows.map(function (r) { return r.html; }).join('') : '<div class="wempty">Nothing here yet' + (workQ ? ' for “' + esc(workQ) + '”' : '') + '. It fills as the agents write.</div>'; });
 }
@@ -6767,7 +6789,7 @@ function renderWork() {
   t.addEventListener('click', function (e) { var b = e.target.closest('[data-wtab]'); if (!b) return; workTab = b.getAttribute('data-wtab'); renderWork(); });
   $('wkUnits').addEventListener('click', function (e) { var b = e.target.closest('[data-wunit]'); if (!b) return; workUnit = b.getAttribute('data-wunit'); renderWork(); });
   s.addEventListener('input', function () { workQ = keep(s.value); renderWork(); });
-  l.addEventListener('click', function (e) { var st = e.target.closest('[data-wstage]'); if (st) { var pr = st.getAttribute('data-wstage').split('|'); markStage(pr[0], pr[1]); return; } var sb = e.target.closest('[data-wsite]'); if (sb) { openSite(sb.getAttribute('data-wsite')); return; } var cp = e.target.closest('[data-wcopy]'); if (cp) { var nd = (HUBX.needs || {})[cp.getAttribute('data-wcopy')] || {}, txt = keep(nd.preview || nd.prev || ''), box = cp.closest('.abox'); try { navigator.clipboard.writeText(txt).then(function () { toast('Copied. Paste it into your Messages app.', 'info', 'Script'); }, function () { var p = box && box.querySelector('.ascript'); if (p) { var r = document.createRange(); r.selectNodeContents(p); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } }); } catch (x) {} return; } var b = e.target.closest('[data-wtoggle]'); if (!b) return; var id = b.getAttribute('data-wtoggle'); workOpen[id] = !workOpen[id]; renderWork(); });
+  l.addEventListener('click', function (e) { var st = e.target.closest('[data-wstage]'); if (st) { var pr = st.getAttribute('data-wstage').split('|'); markStage(pr[0], pr[1]); return; } var sb = e.target.closest('[data-wsite]'); if (sb) { openSite(sb.getAttribute('data-wsite')); return; } var wi = e.target.closest('[data-wimg]'); if (wi) { openImg(wi.getAttribute('data-wimg')); return; } var cp = e.target.closest('[data-wcopy]'); if (cp) { var nd = (HUBX.needs || {})[cp.getAttribute('data-wcopy')] || {}, txt = keep(nd.preview || nd.prev || ''), box = cp.closest('.abox'); try { navigator.clipboard.writeText(txt).then(function () { toast('Copied. Paste it into your Messages app.', 'info', 'Script'); }, function () { var p = box && box.querySelector('.ascript'); if (p) { var r = document.createRange(); r.selectNodeContents(p); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } }); } catch (x) {} return; } var b = e.target.closest('[data-wtoggle]'); if (!b) return; var id = b.getAttribute('data-wtoggle'); workOpen[id] = !workOpen[id]; renderWork(); });
 })();
 
 })();
