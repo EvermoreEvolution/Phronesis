@@ -25,6 +25,12 @@ body.h3 #hd,body.h3 #fx{display:none}
 body.face.live #avw{opacity:1}
 body.face #hd,body.face #fx,body.face #hd3{opacity:0!important}
 body.faceout #avw{opacity:0!important;transition:opacity 1.8s ease}
+/* embed mode: inside the hub's Phronesis section, transparent, no page chrome of its own */
+body.embed,html:has(body.embed){background:transparent!important}
+body.embed header,body.embed #hint,body.embed #mic,body.embed #load,body.embed #gl,body.embed #lab{display:none!important}
+body.embed footer{padding-bottom:10px}
+body.embed #cap{font-size:clamp(14px,2.2vh,19px);max-width:92%}
+body.embed.dormant #hd,body.embed.dormant #fx,body.embed.dormant #hd3,body.embed.dormant #avw{opacity:0}
 /* overlay mode: he sits in the middle of the hub, framed by a soft glow instead of a window */
 body.overlay{background:radial-gradient(ellipse at 50% 42%,#071226 0%,#01040b 70%)}
 body.overlay header .mark{font-size:15px;letter-spacing:.28em;opacity:.7}
@@ -80,11 +86,11 @@ body.live.speaking #mic::after{border-color:var(--gold)}
 <script src="globe.js?v=1793342314"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
-  import { createHead3D } from './3d/head3d.js?v=1793342314';
+  import { createHead3D } from './3d/head3d.js?v=1793343921';
   const q = new URLSearchParams(location.search);
   window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
   window.PHR3D.catch(() => {});
-  const s = document.createElement('script'); s.src = 'app.js?v=1793342314'; document.body.appendChild(s);
+  const s = document.createElement('script'); s.src = 'app.js?v=1793343921'; document.body.appendChild(s);
 </script>
 </body>
 </html>

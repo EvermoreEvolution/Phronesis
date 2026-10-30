@@ -12,6 +12,10 @@
   function $(id) { return document.getElementById(id); }
   var body = document.body, cap = $('cap'), chip = $('chip'), st = $('st'), mic = $('mic'), hint = $('hint');
   if (Q.get('overlay') === '1') body.classList.add('overlay');
+  // embed mode: he lives inside the Command center's own Phronesis section (the hub page holds this page in a frame)
+  var EMBED = Q.get('embed') === '1' && window.parent !== window;
+  if (EMBED) body.classList.add('embed');
+  function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -257,7 +261,7 @@
 
   function wake(first) {
     if (live) return;
-    live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
+    live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); toHub({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
@@ -277,7 +281,7 @@
       .catch(function (e) { L('wake failed: ' + (e && (e.name + ' ' + e.message))); live = false; sending = false; pendingAwake = null; clearTimeout(hintT); stopVoice(); if (head) head.setState('dormant'); lisSend({ live: false }); setStatus('error', 'Problem'); say(micState === 'denied' ? 'The microphone is blocked for this page, sir. Click the lock icon by the address, allow the microphone, then tap me again.' : micState !== 'on' ? 'I could not open the microphone, sir. Check that one is plugged in and not used by another app, then tap me again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
   }
   function sleep(msg, dissolve) {
-    live = false; sending = false; clearIdle(); lisSend({ live: false }); stopVoice(); pendingAwake = null;
+    live = false; sending = false; clearIdle(); lisSend({ live: false }); toHub({ live: false }); stopVoice(); pendingAwake = null;
     if (ws) { var w = ws; ws = null; try { w.close(1000); } catch (e) {} }
     stopMic(); body.classList.remove('live', 'speaking'); setStatus('dormant', 'Resting'); say(msg || '');
     var done = function () { if (live) return; stopFace(); body.classList.remove('face'); body.classList.add('dormant'); if (head) head.setState('dormant'); setStatus('dormant', 'Dormant'); };
@@ -324,6 +328,16 @@
     .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; if (autoWake) { autoWake = false; $('load').classList.add('gone'); greeted = true; wake(true); } })
     .catch(function (e) { L('load ' + e.message); $('load').classList.add('ready'); lmsg.textContent = 'Ready (some sounds missing).'; });
   $('go').addEventListener('click', function () { $('load').classList.add('gone'); greeted = true; wake(true); });
+  if (EMBED) {
+    // the hub tells him when to wake or rest; the loader never shows inside the hub
+    $('load').classList.add('gone');
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || d.phr !== 'live-cmd') return;
+      if (d.cmd === 'wake' && !live) { var f = !greeted; greeted = true; wake(f); }
+      if (d.cmd === 'sleep' && live) sleep('', true);
+    });
+    toHub({ ready: true, live: false });
+  }
 
   window.PHR = { wake: wake, sleep: sleep, state: function () { return { live: live, sending: sending, ws: ws && ws.readyState, playing: playing.length, head: head && head.state, conv: convId }; } };
 })();
