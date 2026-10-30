@@ -335,6 +335,11 @@
       var d = e.data; if (!d || d.phr !== 'live-cmd') return;
       if (d.cmd === 'wake' && !live) { var f = !greeted; greeted = true; wake(f); }
       if (d.cmd === 'sleep' && live) sleep('', true);
+      if (d.cmd === 'dismiss' && live) {   // the Earth was clicked: a short sign-off in his voice, then he disintegrates
+        dismissing = true; saidBye = false; stopVoice();
+        if (ws) { try { ws.close(1000); } catch (x) {} }
+        restAfterVoice();
+      }
     });
     toHub({ ready: true, live: false });
   }

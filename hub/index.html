@@ -6539,7 +6539,7 @@ function renderWork() {
   var Q = new URLSearchParams(location.search), ready = false, live = false, wantWake = Q.get('wake') === '1';
   var f = document.createElement('iframe');
   f.id = 'phrLive'; f.title = 'Phronesis'; f.allow = 'microphone; autoplay'; f.setAttribute('allowtransparency', 'true');
-  f.src = '../?embed=1&v=' + Date.now();
+  f.src = '../?embed=1' + (Q.get('face') === 'video' ? '' : '&face=off') + '&v=' + Date.now();
   f.style.cssText = 'position:absolute;border:0;background:transparent;z-index:6;opacity:0;transition:opacity .9s ease;pointer-events:none';
   stage.appendChild(f);
   function place() { var s = stage.getBoundingClientRect(), r = hw.getBoundingClientRect(); var w = r.width || s.width * .76, h = r.height || s.height;
@@ -6554,6 +6554,11 @@ function renderWork() {
     if (d.live === true) { live = true; setStage('phro'); place(); f.style.opacity = '1'; f.style.pointerEvents = 'auto'; document.body.classList.add('phr-live'); }
     if (d.live === false && live) { live = false; setTimeout(function () { if (!live) { f.style.opacity = '0'; f.style.pointerEvents = 'none'; document.body.classList.remove('phr-live'); setStage('earth'); } }, 2000); }
   });
+  // Clicking Earth while he is up dismisses him: he signs off, disintegrates, and the Earth returns
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-focus="earth"]'); if (!t || !live) return;
+    e.preventDefault(); e.stopPropagation(); send('dismiss');
+  }, true);
   // Clicking Phronesis or the mic wakes the live Phronesis instead of the recorded one
   document.addEventListener('click', function (e) {
     var t = e.target.closest && e.target.closest('[data-wake], #wakeBtn, .wb, #bMic, #bTalk, [data-focus="phro"]'); if (!t) return;
