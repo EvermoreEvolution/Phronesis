@@ -16,7 +16,8 @@
   function $(id) { return document.getElementById(id); }
   var body = document.body, cap = $('cap'), chip = $('chip'), st = $('st'), mic = $('mic'), hint = $('hint');
   var log = window.PHR_LOG = [];
-  function L(m) { log.push(Date.now() + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} }
+  function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
+  var dbg = null, micState = 'off', wsState = 'closed';
 
   // ---------- visuals ----------
   var head = null, globe = null;
@@ -67,7 +68,22 @@
   }
   function stopVoice() { playing.slice().forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} }); playing = []; nextT = 0; }
   function speakingNow() { if (head && head.state !== 'speaking') head.say(-1, true); setStatus('speaking', 'Speaking'); clearIdle(); }
-  function onVoiceDone() { if (!live) return; if (head) head.setState('listening'); setStatus('listening', 'Listening'); armIdle(); }
+  function onVoiceDone() {
+    if (!live) return; if (head) head.setState('listening');
+    if (sending) { setStatus('listening', 'Listening'); armIdle(); return; }
+    setStatus('thinking', micState !== 'on' ? 'Waiting for microphone' : 'Connecting');
+    waitHint();
+  }
+  var hintT = null;
+  function waitHint() {
+    clearTimeout(hintT);
+    hintT = setTimeout(function () {
+      if (!live || sending) return;
+      L('still waiting: mic ' + micState + ', link ' + wsState);
+      if (micState !== 'on') say('I cannot hear you yet, sir. Click Allow on the microphone prompt at the top left of this window.');
+      else say('My voice link is slow to connect, sir. One moment.');
+    }, 4000);
+  }
 
   function b64ToBytes(b) { var s = atob(b), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
   function pcmToBuffer(bytes, rate) {
@@ -87,9 +103,10 @@
   var workletReady = null;
   function startMic() {
     if (stream) return Promise.resolve();
+    micState = 'asking';
     if (!workletReady) workletReady = ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
-      .then(function (s) { stream = s; return workletReady; })
+      .then(function (s) { stream = s; micState = 'on'; L('mic allowed: ' + (s.getAudioTracks()[0] || {}).label); return workletReady; }, function (e) { micState = e && e.name === 'NotAllowedError' ? 'denied' : 'error'; throw e; })
       .then(function () {
         micSrc = ctx.createMediaStreamSource(stream); micNode = new AudioWorkletNode(ctx, 'phr-mic');
         var sink = ctx.createGain(); sink.gain.value = 0; micSrc.connect(micNode); micNode.connect(sink); sink.connect(ctx.destination);
@@ -111,16 +128,17 @@
 
   function connect() {
     return new Promise(function (res, rej) {
-      var w = new WebSocket(WS_URL); ws = w; var opened = false;
+      var w = new WebSocket(WS_URL); ws = w; var opened = false; wsState = 'connecting';
+      setTimeout(function () { if (!opened && ws === w) { L('link timeout'); try { w.close(); } catch (e) {} rej(new Error('timeout')); } }, 10000);
       w.onopen = function () {
-        opened = true; L('ws open');
+        opened = true; wsState = 'open'; L('voice link open');
         var now = new Date();
         w.send(JSON.stringify({ type: 'conversation_initiation_client_data', dynamic_variables: {} }));
         w.send(JSON.stringify({ type: 'contextual_update', text: 'Right now it is ' + now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' in Worcester. Michael is talking to you from the Phronesis page. You already greeted him; do not greet him again.' }));
         res();
       };
       w.onerror = function () { L('ws error'); if (!opened) rej(new Error('connect failed')); };
-      w.onclose = function (e) { L('ws close ' + e.code + ' ' + e.reason); if (ws === w) { ws = null; sending = false; if (live) sleep(e.code === 1000 ? 'Conversation ended. Tap to talk again.' : 'Connection dropped (' + (e.reason || e.code) + '). Tap to try again.'); } };
+      w.onclose = function (e) { wsState = 'closed ' + e.code; L('voice link closed ' + e.code + ' ' + (e.reason || '')); if (!opened) rej(new Error('closed ' + e.code)); if (ws === w) { ws = null; sending = false; if (live) sleep(e.code === 1000 ? 'Conversation ended. Tap to talk again.' : 'Connection dropped (' + (e.reason || e.code) + '). Tap to try again.'); } };
       w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } onEvent(d); };
     });
   }
@@ -173,7 +191,7 @@
       if (b) { say(LINES[line]); playBuffer(b, 1); } else onVoiceDone();
     };
     if (head) head.wake(); else pendingAwake();
-    Promise.all([micP, wsP]).then(function () { sending = true; L('live'); })
+    Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
       .catch(function (e) { live = false; stopVoice(); setStatus('error', 'Problem'); say(e && e.name === 'NotAllowedError' ? 'I need the microphone, sir. Allow it in the browser and tap again.' : 'I could not reach my voice service. Tap to try again.'); body.classList.remove('live'); if (ws) try { ws.close(); } catch (x) {} });
   }
   function sleep(msg) {
@@ -198,6 +216,14 @@
     } catch (e) { rec = null; }
   }
   function stopWakeWord() { wantWW = false; if (rec) { try { rec.onend = null; rec.abort(); } catch (e) {} rec = null; } }
+
+  // ---------- debug: tap the status chip to see what he is doing ----------
+  dbg = document.createElement('pre'); dbg.hidden = true;
+  dbg.style.cssText = 'position:fixed;left:12px;right:12px;top:56px;max-height:45vh;overflow:auto;z-index:9;margin:0;padding:10px;font:11px/1.4 ui-monospace,monospace;color:#cfe3ff;background:rgba(1,6,16,.92);border:1px solid rgba(140,190,255,.25);border-radius:10px;white-space:pre-wrap';
+  document.body.appendChild(dbg);
+  chip.style.cursor = 'pointer'; chip.title = 'Tap for details';
+  chip.addEventListener('click', function () { dbg.hidden = !dbg.hidden; dbg.textContent = log.slice(-30).join('\n') || 'Nothing yet.'; });
+  L('page ' + (navigator.userAgent.match(/(Chrome|Edg|Firefox|Safari)\/[\d.]+/g) || []).join(' ') + (window.claude ? ' (inside Claude)' : ''));
 
   // ---------- controls ----------
   mic.addEventListener('click', function () {
