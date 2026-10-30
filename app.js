@@ -207,7 +207,15 @@
       var c = m.createClient(tok, { disableInputAudio: true });
       return Promise.resolve(c.streamToVideoElement('av')).then(function () {
         AV.client = c; AV.inp = c.createAgentAudioInputStream({ encoding: 'pcm_s16le', sampleRate: 44100, channels: 1 });
-        AV.on = true; body.classList.add('face'); L('live face on');
+        // only take over from the 3D head once real video frames are arriving
+        return new Promise(function (res, rej) {
+          var v = $('av'), t0 = Date.now();
+          (function check() {
+            if (v.videoWidth > 0 && v.readyState >= 2) { AV.on = true; body.classList.add('face'); L('live face on (' + v.videoWidth + 'x' + v.videoHeight + ')'); return res(); }
+            if (Date.now() - t0 > 9000) { L('live face: no video after 9 s, keeping the 3D head'); stopFace(); return rej(new Error('no video')); }
+            setTimeout(check, 200);
+          })();
+        });
       });
     }); }).catch(function (e) { L('live face off: ' + (e && e.message)); throw e; });
   }
