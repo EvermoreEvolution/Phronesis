@@ -101,8 +101,8 @@ export async function createHead3D(canvas, opts = {}) {
   const cam = new THREE.PerspectiveCamera(24, 1, 0.05, 20);
   const tl = new THREE.TextureLoader();
   const [gltf, tF, tS, tB, tSuit] = await Promise.all([
-    new GLTFLoader().loadAsync(opts.glb || (base + 'head.glb')),
-    tl.loadAsync(base + 'front.jpg'), tl.loadAsync(base + 'side.jpg'), tl.loadAsync(base + 'back.jpg'), tl.loadAsync(base + 'suit.jpg')]);
+    opts.glbBuffer ? new GLTFLoader().parseAsync(opts.glbBuffer, '') : new GLTFLoader().loadAsync(opts.glb || (base + 'head.glb')),
+    ...['front', 'side', 'back', 'suit'].map(k => tl.loadAsync((opts.tex && opts.tex[k]) || (base + k + '.jpg')))]);
   [tF, tS, tB, tSuit].forEach(t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; });
   const U = { tSuit: { value: tSuit }, tF: { value: tF }, tS: { value: tS }, tB: { value: tB }, uJaw: { value: 0 }, uWide: { value: 0 }, uTime: { value: 0 },
     uHolo: { value: opts.holo ?? 0.65 }, uAwake: { value: 1 }, uReveal: { value: 0 }, uTint: { value: new THREE.Color(0.35, 0.7, 1.0) } };
