@@ -6706,7 +6706,7 @@ function approvedList() {
 function approvedRow(e) {
   var l = e.l, name = keep(l.business) || keep((e.drafts[0] && e.drafts[0].n.text || '').replace(/^First text for /, '').split(' (')[0]) || e.id;
   var site = e.sites.length ? e.sites.map(function (x) { var s = x.s, has = typeof s.html === 'string' && s.html.length > 50, link = /^https?:\/\//i.test(s.link || '') ? s.link : '';
-      return '<div class="abox"><b>Website</b><span>' + esc((s.kind || 'demo') + (s.template ? ' · ' + keep(s.template) : '') + ' · built ' + dayLab(toMs(s.builtAt) || toMs(s.updatedAt) || Date.now())) + '</span><div class="acts">' + (has ? '<button class="btn gold sm" data-wsite="' + esc(x.id) + '">Open the site</button>' : '') + (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Open link ↗</a>' : '') + '</div></div>'; }).join('')
+      return '<div class="abox"><b>Website</b><span>' + esc((s.kind || 'demo') + (s.template ? ' · ' + keep(s.template) : '') + ' · built ' + dayLab(toMs(s.builtAt) || toMs(s.updatedAt) || Date.now())) + '</span><div class="acts">' + (has ? '<button class="btn gold sm" data-wsite="' + esc(x.id) + '">Open the site</button>' : '') + (link && !has ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Old demo page ↗</a>' : '') + '</div></div>'; }).join('')
     : '<div class="abox"><b>Website</b><span>No demo site in the hub yet.</span></div>';
   /* one script per kind, newest first (Michael, Oct 30, 4:59 pm: 'I'm seeing two approved scripts'); older versions fold away */
   var kinds = {}, older = 0;
@@ -6770,13 +6770,29 @@ function openImg(id) {
 }
 function siteRow(id, s) {
   var kind = s.kind || 'demo', st = s.status || 'built', hasHtml = typeof s.html === 'string' && s.html.length > 50, link = /^https?:\/\//i.test(s.link || '') ? s.link : '';
-  var acts = (hasHtml ? '<button class="btn gold sm" data-wsite="' + esc(id) + '">Open the site</button>' : '') + (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Open link ↗</a>' : '') + (!hasHtml && !link ? '<span class="st">' + esc(keep(s.file ? 'File: ' + s.file : 'No file or link in the hub yet')) + '</span>' : '');
-  var d = {}; Object.keys(s).forEach(function (k) { if (k !== 'html') d[k] = s[k]; }); if (hasHtml) d.size = Math.round(s.html.length / 1024) + ' KB of page code';
+  var acts = (hasHtml ? '<button class="btn gold sm" data-wsite="' + esc(id) + '">Open the site</button>' : '') + (link && !hasHtml ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener">Old demo page ↗</a>' : '') + (!hasHtml && !link ? '<span class="st">' + esc(keep(s.file ? 'File: ' + s.file : 'No file or link in the hub yet')) + '</span>' : '');
+  var d = {}; Object.keys(s).forEach(function (k) { if (k !== 'html' && !(k === 'link' && hasHtml)) d[k] = s[k]; });   /* an older published copy is never offered next to the newest site */ if (hasHtml) d.size = Math.round(s.html.length / 1024) + ' KB of page code';
   return { ts: toMs(s.builtAt) || toMs(s.updatedAt), html: wCard(id, d, keep(s.business) || id, (kind + ' · ' + st + ' · ' + aname(s.agent || 'builder') + ' · ' + dayLab(toMs(s.builtAt) || Date.now())), { text: kind, cls: st === 'live' ? 'st-done' : st === 'sent' ? 'st-on' : '' }, ['business', 'kind', 'status', 'lead', 'unit', 'pages', 'link', 'file', 'notes', 'builtAt']).replace('<div class="wd">', '<div class="wd"><div class="wacts">' + acts + '</div>') };
 }
 function openSite(id) {
   var s = (HUBX.sites || {})[id]; if (!s || typeof s.html !== 'string') return;
-  var m = $('siteView'); $('siteTitle').textContent = keep(s.business) + ' · ' + (s.kind || 'demo'); $('siteFrame').srcdoc = s.html; m.hidden = false;
+  var m = $('siteView'); $('siteTitle').textContent = keep(s.business) + ' · ' + (s.kind || 'demo'); $('siteFrame').srcdoc = siteGuard(s.html); m.hidden = false;
+}
+/* A site opened in the viewer is an about:srcdoc page whose links resolve against the Command page's address, so '#/services'
+   used to load the Command page inside the viewer. This runs after the site's own handlers and keeps '#' links inside the site;
+   if a one-page site's '#/x' link has no router, it scrolls to the section with that id. Tested on all 41 hub sites. */
+function siteGuard(h) {
+  var G = '<script>(function(){'
+   + 'function sec(id){ var t=document.getElementById(id); if(!t)return null; var r=t.getBoundingClientRect(); return (r.height>0||r.width>0)?t:null; }'
+   + 'function go(h){ if(!h||h==="#")return; var y0=window.scrollY, same=(location.hash===h);'
+   + '  if(same){ try{ window.dispatchEvent(new HashChangeEvent("hashchange")); }catch(e){} } else { location.hash=h; }'
+   + '  setTimeout(function(){ var id=h.replace(/^#\\/?/,""), t=sec(id); if(t && Math.abs(window.scrollY-y0)<20 && Math.abs(t.getBoundingClientRect().top)>40){ t.scrollIntoView({behavior:"smooth",block:"start"}); } },180); }'
+   /* runs after the site's own handlers: if the site already handled the link, leave it; otherwise keep the link inside this site */
+   + 'window.addEventListener("click",function(e){ if(e.defaultPrevented)return; var a=e.target&&e.target.closest?e.target.closest("a[href]"):null; if(!a)return; var h=a.getAttribute("href")||""; if(h.charAt(0)!=="#")return; e.preventDefault(); go(h); },false);'
+   + '})();<\/script>';
+  var m = /<head[^>]*>/i.exec(h);
+  if (m) return h.slice(0, m.index + m[0].length) + G + h.slice(m.index + m[0].length);
+  return G + h;
 }
 function saleRow(id, s) { return { ts: toMs(s.at), html: wCard(id, s, money(+s.amount || 0) + ' · ' + keep(s.what), (s.unit || 'evolution') + ' · ' + dayLab(toMs(s.at)), { text: 'sale', cls: 'st-done' }, ['amount', 'what', 'unit', 'at', 'by']) }; }
 function workRows() {
