@@ -325,7 +325,7 @@ body.live .ctl,body.live #help,body.live #helpBtn{display:none!important}
       <button id="chatX" aria-label="Close the group chat">✕</button>
     </header>
     <div id="chatBody" role="log" aria-live="polite" aria-label="Messages between the agents"></div>
-    <footer><form id="chatForm" autocomplete="off"><select id="chatTo" aria-label="Who the message is for"></select><input id="chatIn" maxlength="600" placeholder="Message the team…" aria-label="Your message"><button id="chatSend" type="submit" aria-label="Send">Send</button></form><div id="chatNote">Demo. Switch the Command page to Live and your messages become real tasks.</div></footer>
+    <footer><form id="chatForm" autocomplete="off"><select id="chatTo" aria-label="Who the message is for"></select><input id="chatIn" maxlength="2000" placeholder="Message the team…" aria-label="Your message"><button id="chatSend" type="submit" aria-label="Send">Send</button></form><div id="chatNote">Demo. Switch the Command page to Live and your messages become real tasks.</div></footer>
   </section>
 
   <div id="hint">Drag to orbit · scroll or pinch to zoom · tap a room, then an agent</div>
@@ -2179,7 +2179,7 @@ function initComposer() {
   sel.innerHTML = '<option value="relay">@Everyone</option>' + AG.map(a => '<option value="' + a.id + '">@' + escH(a.name) + '</option>').join('');
   form.addEventListener('submit', e => {
     e.preventDefault(); const text = inp.value.trim(); if (!text) return; const to = sel.value;
-    const m = {from: 'you', to, text: text.slice(0, 600), t: D.t, kind: 'mine', pending: true};
+    const m = {from: 'you', to, text: text.slice(0, 2000), t: D.t, kind: 'mine', pending: true};
     CH.log.push(m); if (CH.log.length > 170) CH.log.shift(); appendMsg(m); inp.value = '';
     if (typeof LIVE !== 'undefined' && LIVE.on && parent !== window) {
       btn.disabled = true; note.className = ''; note.textContent = 'Sending to ' + (to === 'relay' ? 'Relay' : A[to].name) + '…';
@@ -2521,19 +2521,20 @@ function liveApply(d) {
   AG.forEach(a => {
     const x = ag[a.id] || {}, s = ST[x.s] ? x.s : (x.s === 'off' ? 'dormant' : 'waiting');
     a.rt.manual = false; setState(a, s, false); a.rt.manual = true;
-    a.rt.liveNote = typeof x.note === 'string' ? x.note.slice(0, 160) : '';
+    a.rt.liveNote = typeof x.note === 'string' ? x.note.slice(0, 400) : '';
     if (s === 'needs') a.rt.needsN = Math.max(1, Math.min(9, +x.n || 1));
   });
   // Team Room: one line per hub record, oldest first, each shown once
   const lines = Array.isArray(d.chat) ? d.chat.slice().sort((p, q) => (p.at || 0) - (q.at || 0)) : [];
   lines.forEach(m => {
     if (!m || !m.k || LIVE.seen[m.k]) return; LIVE.seen[m.k] = 1;
-    if (m.from === 'you') { const ty = A[m.to] ? m.to : 'relay', tt = String(m.text || '').slice(0, 240), tm = m.at ? liveMinOf(m.at) : D.t; const pend = CH.log.find(x => x.pending && x.text === tt); if (pend) { pend.pending = false; return; } const um = {from: 'you', to: ty, text: tt, t: tm, kind: 'mine'}; CH.log.push(um); if (CH.open) appendMsg(um); return; }
+    if (m.from === 'you') { const ty = A[m.to] ? m.to : 'relay', tt = String(m.text || '').slice(0, 4000), tm = m.at ? liveMinOf(m.at) : D.t; const pend = CH.log.find(x => x.pending && x.text === tt); if (pend) { pend.pending = false; return; } const um = {from: 'you', to: ty, text: tt, t: tm, kind: 'mine'}; CH.log.push(um); if (CH.open) appendMsg(um); return; }
     const from = A[m.from]; if (!from) return;
     const to = m.to === 'you' ? 'you' : (A[m.to] ? m.to : 'you');
-    const text = String(m.text || '').slice(0, 240); if (!text) return;
+    /* Michael, Oct 31, 12:43 am: messages in the group chat were cut off at 240 characters. The chat shows the whole message; only the small floor ticker shortens it. */
+    const text = String(m.text || '').slice(0, 4000); if (!text) return;
     const t = m.at ? liveMinOf(m.at) : D.t;
-    addFeedAt(from, to, text, t);
+    addFeedAt(from, to, text.length > 240 ? text.slice(0, 237) + '…' : text, t);
     const msg = {from: from.id, to, text, t, kind: to === 'you' ? (/^Sale logged|^Money in/.test(text) ? 'money' : (m.kind === 'needs' ? 'you' : '')) : ''};
     CH.log.push(msg); if (CH.log.length > 170) CH.log.shift();
     if (CH.open) appendMsg(msg); else { CH.lastFrom = from.id; CH.unread++; unreadShow(); }

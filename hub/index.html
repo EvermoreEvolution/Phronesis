@@ -136,7 +136,7 @@
   function state() { var h = window.__phrHub, mode = 'none'; try { mode = h && h.mode ? h.mode() : 'none'; } catch (x) {} return mode; }
   function report(n) {
     var mode = state(), ok = mode === 'live' && window.__phrStage === 'ready';
-    var info = { at: Date.now(), ver: 'command-v6', build: '20261031-0026', n: n, ok: ok, mode: mode, stage: String(window.__phrStage), errs: E.slice(-10), ready: document.readyState,
+    var info = { at: Date.now(), ver: 'command-v6', build: '20261031-0044', n: n, ok: ok, mode: mode, stage: String(window.__phrStage), errs: E.slice(-10), ready: document.readyState,
       pill: ((document.getElementById('navModeT') || {}).textContent || ''), work: ((document.getElementById('wkList') || {}).textContent || '').slice(0, 120),
       ua: String(navigator.userAgent || '').slice(0, 140), w: window.innerWidth };
     try { if (window.claude && typeof window.claude.use === 'function') window.claude.use('db').then(function (db) { if (db) { try { db.doc('meta/boot').set(info).catch(function () {}); } catch (x) {} } }, function () {}); } catch (x) {}
