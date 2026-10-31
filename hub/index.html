@@ -136,7 +136,7 @@
   function state() { var h = window.__phrHub, mode = 'none'; try { mode = h && h.mode ? h.mode() : 'none'; } catch (x) {} return mode; }
   function report(n) {
     var mode = state(), ok = mode === 'live' && window.__phrStage === 'ready';
-    var info = { at: Date.now(), ver: 'command-v6', build: '20261031-0002', n: n, ok: ok, mode: mode, stage: String(window.__phrStage), errs: E.slice(-10), ready: document.readyState,
+    var info = { at: Date.now(), ver: 'command-v6', build: '20261031-0026', n: n, ok: ok, mode: mode, stage: String(window.__phrStage), errs: E.slice(-10), ready: document.readyState,
       pill: ((document.getElementById('navModeT') || {}).textContent || ''), work: ((document.getElementById('wkList') || {}).textContent || '').slice(0, 120),
       ua: String(navigator.userAgent || '').slice(0, 140), w: window.innerWidth };
     try { if (window.claude && typeof window.claude.use === 'function') window.claude.use('db').then(function (db) { if (db) { try { db.doc('meta/boot').set(info).catch(function () {}); } catch (x) {} } }, function () {}); } catch (x) {}
@@ -688,6 +688,8 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 .warch{margin:10px 0 4px;padding:12px 14px;border:1px solid var(--warn,#d98b5f);border-radius:12px;background:color-mix(in srgb,var(--warn,#d98b5f) 10%,transparent);display:grid;gap:6px}
 .warch span{font-size:.86rem;opacity:.85}
 .warch .acts{display:flex;gap:8px;flex-wrap:wrap}
+.abox.tfail{border-color:var(--warn,#d98b5f);background:color-mix(in srgb,var(--warn,#d98b5f) 9%,transparent)}
+.wstage button[data-wtextfail][aria-pressed="true"]{background:var(--warn,#d98b5f);color:#1a1208;border-color:var(--warn,#d98b5f)}
 
 </style>
 <div id="app" data-view="command">
@@ -6736,7 +6738,9 @@ function markStage(id, stage) {
 /* Michael, Oct 30, 11:56 pm: when a text will not go through, reach them another way. */
 function textFailed(id) {
   var l = (HUBX.leads || {})[id] || {}; var biz = keep(l.business) || id;
-  hubMerge('leads/' + id, { textFailed: true, textFailedAt: Date.now(), updatedAt: Date.now() }).catch(function () {});
+  if (l.textFailed) { l.textFailed = false; renderWork(); hubMerge('leads/' + id, { textFailed: false, updatedAt: Date.now() }).then(function () { toast('Cleared Text failed on ' + biz + '.', 'info', 'Work'); }, function (e) { l.textFailed = true; renderWork(); writeFail(e, 'clear it'); }); return; }
+  l.textFailed = true; l.textFailedAt = Date.now(); renderWork();
+  hubMerge('leads/' + id, { textFailed: true, textFailedAt: l.textFailedAt, updatedAt: Date.now() }).catch(function (e) { l.textFailed = false; renderWork(); writeFail(e, 'mark Text failed'); });
   var t = 'Michael tried to text ' + biz + ' at ' + (keep(l.phone) || 'the listed number') + ' and his phone said "Message Blocking is active", so the number most likely cannot take texts (a landline). Reach them another way, for lead leads/' + id + ': (1) an Instagram or Facebook DM if the business has a page (find it, schema rule 32, voice.standard); (2) an email draft if the lead has a business email (schema rule 33); (3) a short phone-call script for Michael (about 30 seconds, warm and specific, same standard) and one line he can use if he walks in. Each one is a draft need (kind draft) with its channel set; hand them to Brief and then Verifier as usual. Nothing is sent.';
   if (typeof giveTask === 'function') giveTask(t, 'scribe').then(function (ok) { if (ok) toast('Scribe is writing a DM, an email if there is one, and a call script for ' + biz + '.', 'info', 'Scribe'); });
 }
@@ -6756,7 +6760,7 @@ function archiveLead(id) {
   }).then(function () { toast(rec.business + ' moved to Said no.', 'info', 'Work'); }, function (e) { writeFail(e, 'clear it out'); });
 }
 function archRow(id, a) { var m = (a.messages || [])[0]; return { ts: toMs(a.lostAt), html: wCard('arch-' + id, a, keep(a.business) || id, ['said no ' + dayLab(toMs(a.lostAt)), a.type, a.phone].filter(Boolean).join(' · '), { text: 'said no', cls: 'st-lost' }, ['business', 'unit', 'type', 'phone', 'address', 'rating', 'reviews', 'stageBefore', 'sentAt', 'textFailed', 'draftsCleared', 'sitesCleared', 'lostAt', 'notes', 'source'], m ? '<div class="abox"><b>What was sent (' + esc(m.channel) + ')</b><p class="ascript">' + esc(m.sent) + '</p></div>' : '') }; }
-function leadRow(id, l) { return { ts: toMs(l.updatedAt) || toMs(l.createdAt), html: wCard(id, l, keep(l.business) || id, [l.category || l.group || '', l.address || '', l.phone || ''].filter(Boolean).join(' · '), { text: l.stage || 'found', cls: 'st-' + (l.stage || 'found') }, ['business', 'stage', 'unit', 'fit', 'phone', 'address', 'rating', 'reviews', 'hours', 'source', 'notes'], stageStrip(id, l)) }; }
+function leadRow(id, l) { return { ts: toMs(l.updatedAt) || toMs(l.createdAt), html: wCard(id, l, keep(l.business) || id, [l.category || l.group || '', l.address || '', l.phone || ''].filter(Boolean).join(' · '), (l.textFailed ? { text: 'text failed', cls: 'st-bad' } : { text: l.stage || 'found', cls: 'st-' + (l.stage || 'found') }), ['business', 'stage', 'textFailed', 'unit', 'fit', 'phone', 'address', 'rating', 'reviews', 'hours', 'source', 'notes'], stageStrip(id, l)) }; }
 function cmdRow(id, c) { return { ts: toMs(c.createdAt), html: wCard(id, c, (c.type === 'task' ? keep(c.text).slice(0, 110) : 'Run now: ' + aname(c.agent)), 'to ' + aname(c.agent) + ' · from ' + (c.from === 'michael' || c.createdBy === 'michael' ? 'you' : aname(c.from || c.createdBy)) + ' · ' + dayLab(toMs(c.createdAt)) + (c.dueText && c.status !== 'done' ? ' · due ' + keep(c.dueText).replace(/ New York$/, '') : ''), { text: c.status === 'done' ? 'done' : (c.due && toMs(c.due) < Date.now() ? 'overdue' : (c.status || 'open')), cls: c.status === 'done' ? 'st-done' : (c.due && toMs(c.due) < Date.now() ? 'st-bad' : 'st-on') }, ['text', 'agent', 'from', 'status', 'dueText', 'result', 'hop', 'parent', 'createdAt', 'doneAt']) }; }
 /* Approved: one card per approved business with everything in one place: details, the Verifier check, the approved script(s), the demo site */
 var APPSTAGES = /^(approved|sent|replied|booked|paid)$/;
@@ -6788,8 +6792,9 @@ function approvedRow(e) {
   var vn = (e.drafts[0] && e.drafts[0].n.verifyNote) || l.verifyNote || '';
   var check = '<div class="abox"><b>Verifier</b><span>' + esc(keep(vn) || (l.stage === 'verified' || l.verifiedAt ? 'Verified' : 'Checked before the draft was approved')) + '</span>' + (l.source ? '<div class="acts">' + wLink(l.source) + '</div>' : '') + '</div>';
   var info = [l.category, l.address, l.phone, l.rating ? l.rating + ' stars' + (l.reviews ? ' (' + l.reviews + ' reviews)' : '') : ''].filter(Boolean).map(function (x) { return esc(keep(String(x))); }).join(' · ');
-  var extra = '<div class="agrid">' + site + scripts + check + '</div>' + (info ? '<p class="ainfo">' + info + '</p>' : '') + stageStrip(e.id, l);
-  return { ts: e.at || 0, html: wCard('ap-' + e.id, l, name, [l.category || '', l.phone || '', e.sites.length ? 'site ready' : 'no site yet', e.drafts.length ? (e.drafts.some(function (d) { return keep(d.n.channel || '').toLowerCase() === 'email'; }) ? 'text and email approved' : 'text approved') : ''].filter(Boolean).join(' · '), { text: l.stage && l.stage !== 'verified' ? l.stage : 'approved', cls: 'st-on' }, ['business', 'stage', 'unit', 'phone', 'address', 'hours', 'rating', 'reviews', 'fit', 'notes'], extra) };
+  var tfail = l.textFailed ? '<div class="abox tfail"><b>Text failed</b><span>Marked ' + esc(dayLab(toMs(l.textFailedAt) || Date.now())) + '. The number most likely cannot take texts. Scribe is writing a DM, an email if they have one, and a call script; each shows here once you approve it. Tap Text failed again to clear it.</span></div>' : '';
+  var extra = '<div class="agrid">' + tfail + site + scripts + check + '</div>' + (info ? '<p class="ainfo">' + info + '</p>' : '') + stageStrip(e.id, l);
+  return { ts: e.at || 0, html: wCard('ap-' + e.id, l, name, [l.category || '', l.phone || '', e.sites.length ? 'site ready' : 'no site yet', e.drafts.length ? (e.drafts.some(function (d) { return keep(d.n.channel || '').toLowerCase() === 'email'; }) ? 'text and email approved' : 'text approved') : '', l.textFailed ? 'text failed' : ''].filter(Boolean).join(' · '), (l.textFailed ? { text: 'text failed', cls: 'st-bad' } : { text: l.stage && l.stage !== 'verified' ? l.stage : 'approved', cls: 'st-on' }), ['business', 'stage', 'unit', 'phone', 'address', 'hours', 'rating', 'reviews', 'fit', 'notes'], extra) };
 }
 /* Opportunities: only the opportunities themselves (Radar writes one opps record per find), best first */
 var OPPRANK = { approved: 0, testing: 1, new: 2, watching: 3, dropped: 9 };
