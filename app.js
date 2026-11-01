@@ -285,36 +285,11 @@
     });
   }
 
-  // ---------- live face (Anam): a realistic talking face, lip-synced to his voice ----------
-  // The PC listener mints a short-lived session token (the Anam key never touches this page).
-  // If there is no listener, no token or no minutes left, the 3D head stays.
+  // ---------- face: the 3D head only ----------
+  // Nov 1: Mr. Evermore removed the Anam live face (its plan ran out). The 3D head is his face from now on.
+  // AV stays so the voice code keeps working: AV.on is always false, so every line plays through the speakers and the 3D head.
   var AV = { on: false, client: null, inp: null, end: 0, endT: null, tok: {} };
-  var ANAM_SDK = 'https://cdn.jsdelivr.net/npm/@anam-ai/js-sdk@4.27.1/+esm';
-  function anamToken() {
-    return new Promise(function (res, rej) {
-      if (!lisOn) return rej(new Error('no PC listener'));
-      var id = 't' + Date.now(); AV.tok[id] = { res: res, rej: rej }; lisSend({ cmd: 'anamToken', id: id });
-      setTimeout(function () { if (AV.tok[id]) { delete AV.tok[id]; rej(new Error('token timeout')); } }, 9000);
-    });
-  }
-  function startFace() {
-    if (Q.get('face') === 'off') return Promise.reject(new Error('face off'));
-    return anamToken().then(function (tok) { return import(ANAM_SDK).then(function (m) {
-      var c = m.createClient(tok, { disableInputAudio: true });
-      return Promise.resolve(c.streamToVideoElement('av')).then(function () {
-        AV.client = c; AV.inp = c.createAgentAudioInputStream({ encoding: 'pcm_s16le', sampleRate: 44100, channels: 1 });
-        // only take over from the 3D head once real video frames are arriving
-        return new Promise(function (res, rej) {
-          var v = $('av'), t0 = Date.now();
-          (function check() {
-            if (v.videoWidth > 0 && v.readyState >= 2) { AV.on = true; body.classList.add('face'); L('live face on (' + v.videoWidth + 'x' + v.videoHeight + ')'); return res(); }
-            if (Date.now() - t0 > 9000) { L('live face: no video after 9 s, keeping the 3D head'); stopFace(); return rej(new Error('no video')); }
-            setTimeout(check, 200);
-          })();
-        });
-      });
-    }); }).catch(function (e) { L('live face off: ' + (e && e.message)); throw e; });
-  }
+  function startFace() { return Promise.reject(new Error('face is the 3D head')); }
   function stopFace() {
     var c = AV.client; AV.on = false; AV.client = null; AV.inp = null; AV.end = 0;
     if (c) setTimeout(function () { try { c.stopStreaming(); } catch (e) {} }, 50);
@@ -365,7 +340,6 @@
     if (g.buf) playBuffer(g.buf, 1);    // instant: he greets while he forms and while the live voice connects
     followLine = null;
     if (first && g.buf && g.text.indexOf('?') < 0) { var fu = pickFollow(); if (fu) { followLine = fu.text; nextT += 0.22; playBuffer(fu.buf, 1); say(g.text + ' ' + fu.text); L('follow-up: ' + fu.text); } }
-    var faceP = startFace().then(function () { return true; }, function () { return false; });
     pendingAwake = function () { setTimeout(function () { prepNext().catch(function () {}); }, 4000); };
     if (head) head.wake(); else pendingAwake();
     Promise.all([micP, wsP]).then(function () { sending = true; clearTimeout(hintT); L('live: mic on, link open'); if (live && !playing.length) { setStatus('listening', 'Listening'); say(''); armIdle(); } })
