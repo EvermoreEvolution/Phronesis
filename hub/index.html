@@ -7034,7 +7034,7 @@ window.__phrStage="ready";
   /* Nov 12: (1) the hub and Phronesis reload themselves when a new version is published, so he never runs an old page for hours.
      (2) The brain in the corner: a living picture of his notes on the PC. Each dot is a note, each line a link between notes.
      It lights the notes he just used. Green means the brain is connected; grey means the listener on the PC is not. */
-  var EH_VER = '1794497548';
+  var EH_VER = '1794498615';
   (function () {
     var born = Date.now();
     function check() {
@@ -7051,7 +7051,7 @@ window.__phrStage="ready";
   (function () {
     var foot = document.querySelector('.nav .foot'); if (!foot) return;
     var st = document.createElement('style');
-    st.textContent = '#ehBrain{margin-top:auto;padding:10px 8px 10px;border-top:1px solid var(--line);cursor:pointer;outline:none;display:grid;gap:6px}#ehBrain+.foot{margin-top:0}#ehBrain .bh{display:flex;justify-content:space-between;align-items:baseline;font:600 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6ff0b4}#ehBrain .bh b{font-weight:500;letter-spacing:.08em;color:rgba(170,200,190,.7)}#ehBrain canvas{width:100%;height:150px;display:block;border-radius:10px;background:radial-gradient(ellipse at 50% 55%,rgba(40,220,140,.10),rgba(4,10,18,0) 70%)}#ehBrain .bs{font:11px/1.35 system-ui,sans-serif;color:rgba(190,215,205,.78);min-height:30px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}#ehBrain.off .bh{color:rgba(160,170,185,.7)}#ehBrain:hover canvas,#ehBrain:focus-visible canvas{box-shadow:inset 0 0 0 1px rgba(111,240,180,.35)}@media (max-width:900px),(max-height:700px){#ehBrain{display:none}}';
+    st.textContent = '#ehBrain{margin-top:auto;padding:10px 8px 10px;border-top:1px solid var(--line);cursor:pointer;outline:none;display:grid;gap:6px}#ehBrain+.foot{margin-top:0}#ehBrain .bh{display:flex;justify-content:space-between;align-items:baseline;font:600 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6ff0b4}#ehBrain .bh b{font-weight:500;letter-spacing:.08em;color:rgba(170,200,190,.7)}#ehBrain canvas{width:100%;height:clamp(104px,15vh,168px);display:block;border-radius:12px;background:radial-gradient(ellipse at 50% 50%,#04120d 0%,#020608 55%,#000 100%);box-shadow:inset 0 0 28px rgba(0,0,0,.9)}#ehBrain .bs{font:11px/1.35 system-ui,sans-serif;color:rgba(190,215,205,.78);min-height:15px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}#ehBrain.off .bh{color:rgba(160,170,185,.7)}#ehBrain:hover canvas,#ehBrain:focus-visible canvas{box-shadow:inset 0 0 0 1px rgba(111,240,180,.35)}@media (max-width:900px),(max-height:640px){#ehBrain{display:none}}';
     document.head.appendChild(st);
     var box = document.createElement('div'); box.id = 'ehBrain'; box.className = 'off'; box.tabIndex = 0; box.setAttribute('role', 'button'); box.title = 'His brain: the notes on the PC. Click to open them.';
     box.innerHTML = '<div class="bh"><span>Brain</span><b id="ehBrainN">not connected</b></div><canvas aria-hidden="true"></canvas><div class="bs" id="ehBrainS">Waiting for the listener on the PC.</div>';
@@ -7062,7 +7062,7 @@ window.__phrStage="ready";
     function say(t) { sEl.textContent = t; }
     function layout(notes) {
       var by = {}, i, j, k;
-      N = notes.map(function (n, i) { var a = i * 2.39996, r = .12 + .3 * Math.sqrt((i + .5) / notes.length); var o = { n: n.n, t: n.t, x: .5 + r * Math.cos(a), y: .5 + r * Math.sin(a), s: 1.5 + Math.min(2.6, Math.log(1 + (n.k || 500) / 700)), ph: i * 1.7, d: 0 }; by[n.t.toLowerCase()] = o; return o; });
+      N = notes.map(function (n, i) { var a = i * 2.39996, r = .12 + .3 * Math.sqrt((i + .5) / notes.length); var o = { n: n.n, t: n.t, x: .5 + r * Math.cos(a), y: .5 + r * Math.sin(a), s: 1.5 + Math.min(2.6, Math.log(1 + (n.k || 500) / 700)), ph: i * 1.7, d: 0, z: ((i * 0.61803398875) % 1) - .5 }; by[n.t.toLowerCase()] = o; return o; });
       E = []; var seen = {};
       notes.forEach(function (n, i) { (n.l || []).forEach(function (l) { var b = by[String(l).toLowerCase()], a = N[i]; if (!b || b === a) return; var key = a.n < b.n ? a.n + '|' + b.n : b.n + '|' + a.n; if (seen[key]) return; seen[key] = 1; E.push([a, b]); a.d++; b.d++; }); });
       for (k = 0; k < 220; k++) {   // a small spring layout, worked out once
@@ -7074,22 +7074,27 @@ window.__phrStage="ready";
       }
     }
     function size() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); W = r.width; H = r.height; if (!W) return; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); }
-    function P(a, t) { return [(a.x + Math.sin(t * .00035 + a.ph) * .012) * W, (a.y + Math.cos(t * .0003 + a.ph * 1.3) * .014) * H]; }
+    var stars = []; for (var si = 0; si < 70; si++) stars.push([(si * 0.7548776662) % 1, (si * 0.5698402909) % 1, .3 + ((si * 0.41) % 1) * .9, si * 2.1]);
+    function P(a, t) {   // each note has depth; the whole brain turns slowly, nearer notes are larger and brighter
+      var ang = t * .00022, tilt = Math.sin(t * .00009) * .22, x = a.x - .5 + Math.sin(t * .0006 + a.ph) * .014, y = a.y - .5 + Math.cos(t * .0005 + a.ph * 1.3) * .016, z = a.z + Math.sin(t * .0004 + a.ph * .7) * .02;
+      var X = x * Math.cos(ang) - z * Math.sin(ang), Z = x * Math.sin(ang) + z * Math.cos(ang), Y = y * Math.cos(tilt) - Z * Math.sin(tilt); Z = y * Math.sin(tilt) + Z * Math.cos(tilt);
+      var k = 1 / (1 + Z * .9); return [(.5 + X * k * .74) * W, (.5 + Y * k * .78) * H, k]; }
     function draw(t) {
       if (!W) size(); if (!W) return;
       cx.clearRect(0, 0, W, H);
       var G = on ? '70,240,160' : '150,160,175', hot = t < pulseUntil;
+      stars.forEach(function (s) { var x = ((s[0] + t * .0000035 * s[2]) % 1) * W, y = s[1] * H, tw = .25 + .35 * (1 + Math.sin(t * .0012 * s[2] + s[3])) / 2; cx.fillStyle = 'rgba(210,235,225,' + (tw * (on ? 1 : .5)) + ')'; cx.fillRect(x, y, s[2] > .9 ? 1.4 : .9, s[2] > .9 ? 1.4 : .9); });
       if (!N.length) {   // no map yet: a faint ring, honestly empty
         for (var i = 0; i < 14; i++) { var a = i / 14 * 6.283 + t * .0001; cx.beginPath(); cx.arc(W / 2 + Math.cos(a) * W * .28, H / 2 + Math.sin(a) * H * .3, 1.4, 0, 6.3); cx.fillStyle = 'rgba(150,160,175,.35)'; cx.fill(); }
         return;
       }
       cx.lineWidth = 1;
-      E.forEach(function (e) { var p = P(e[0], t), q = P(e[1], t), h = hot && (lit[e[0].n] || lit[e[1].n]); cx.strokeStyle = 'rgba(' + G + ',' + (h ? .55 : .16) + ')'; cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); });
-      if (on && E.length && t - lastSpark > (hot ? 140 : 900)) { lastSpark = t; var pool = hot ? E.filter(function (e) { return lit[e[0].n] || lit[e[1].n]; }) : E; if (!pool.length) pool = E; var e = pool[Math.floor(Math.random() * pool.length)]; sparks.push({ e: Math.random() < .5 ? e : [e[1], e[0]], t0: t, d: 700 + Math.random() * 500 }); }
+      E.forEach(function (e) { var p = P(e[0], t), q = P(e[1], t), h = hot && (lit[e[0].n] || lit[e[1].n]); var dk = Math.max(.25, Math.min(1.5, (p[2] + q[2]) / 2)); cx.strokeStyle = 'rgba(' + G + ',' + (h ? .6 : .2 * dk * dk) + ')'; cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); });
+      if (on && E.length && t - lastSpark > (hot ? 110 : 320)) { lastSpark = t; var pool = hot ? E.filter(function (e) { return lit[e[0].n] || lit[e[1].n]; }) : E; if (!pool.length) pool = E; var e = pool[Math.floor(Math.random() * pool.length)]; sparks.push({ e: Math.random() < .5 ? e : [e[1], e[0]], t0: t, d: 700 + Math.random() * 500 }); }
       sparks = sparks.filter(function (s) { var k = (t - s.t0) / s.d; if (k >= 1) return false; var p = P(s.e[0], t), q = P(s.e[1], t), x = p[0] + (q[0] - p[0]) * k, y = p[1] + (q[1] - p[1]) * k; cx.beginPath(); cx.arc(x, y, 1.6, 0, 6.3); cx.fillStyle = 'rgba(200,255,225,' + (.9 * Math.sin(k * 3.14)) + ')'; cx.fill(); return true; });
-      N.forEach(function (a) { var p = P(a, t), h = hot && lit[a.n], br = .55 + .25 * Math.sin(t * .0016 + a.ph);
+      N.map(function (a) { return [a, P(a, t)]; }).sort(function (u, v) { return u[1][2] - v[1][2]; }).forEach(function (u) { var a = u[0], p = u[1], dk = Math.max(.35, Math.min(1.7, p[2])), h = hot && lit[a.n], br = Math.min(1, (.45 + .25 * Math.sin(t * .0016 + a.ph)) * dk);
         if (h) { var k = ((t - (pulseUntil - 7000)) % 1400) / 1400; cx.beginPath(); cx.arc(p[0], p[1], a.s + 3 + k * 12, 0, 6.3); cx.strokeStyle = 'rgba(160,255,205,' + (.7 * (1 - k)) + ')'; cx.stroke(); }
-        cx.beginPath(); cx.arc(p[0], p[1], a.s * (h ? 1.7 : 1), 0, 6.3); cx.fillStyle = h ? 'rgba(215,255,232,1)' : 'rgba(' + G + ',' + (on ? br : .4) + ')'; cx.shadowColor = 'rgba(' + G + ',.9)'; cx.shadowBlur = on ? (h ? 14 : 6) : 0; cx.fill(); cx.shadowBlur = 0; });
+        cx.beginPath(); cx.arc(p[0], p[1], a.s * dk * (h ? 1.7 : 1), 0, 6.3); cx.fillStyle = h ? 'rgba(215,255,232,1)' : 'rgba(' + G + ',' + (on ? br : .4) + ')'; cx.shadowColor = 'rgba(' + G + ',.9)'; cx.shadowBlur = on ? (h ? 16 : 7 * dk) : 0; cx.fill(); cx.shadowBlur = 0; });
       if (!hot && idleText && sEl.textContent !== idleText) { lit = {}; say(idleText); }
     }
     var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, last = 0;
