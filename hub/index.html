@@ -6943,6 +6943,46 @@ window.__phrStage="ready";
    The pickup scheduled task copies each one into the agents' hub and starts Relay (or the named agent). */
 (function () {
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
+  /* TRUTH (Nov 12, stage 1 of the rebuild): he says only what the records show.
+     system.json sits beside this page and is the master switch record: Claude sets paused true or false whenever the team is paused or resumed.
+     meta/pickup.lastRunAt is the pickup's heartbeat. With neither, he says he cannot confirm. */
+  function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
+  function ehSys() { return fetch('system.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  function ehOne(coll, id) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve(null);
+    return sb.from('docs').select('id,data,updated_at').eq('coll', coll).eq('id', id).maybeSingle().then(function (r) { return r.data || null; }, function () { return null; }); }
+  function ehNewest(coll, n) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve([]);
+    return sb.from('docs').select('id,data,updated_at').eq('coll', coll).order('updated_at', { ascending: false }).limit(n || 1).then(function (r) { return r.data || []; }, function () { return []; }); }
+  window.EH_TEAM_STATE = function (agent) {
+    agent = agent || 'relay';
+    return Promise.all([ehSys(), ehOne('agents', agent), ehOne('meta', 'pickup'), ehNewest('runs', 1)]).then(function (v) {
+      var sys = v[0] || {}, ag = v[1] && v[1].data, pk = v[2], run = v[3][0], who = agent.charAt(0).toUpperCase() + agent.slice(1);
+      var beat = pk ? (+(pk.data || {}).lastRunAt || Date.parse(pk.updated_at) || 0) : 0, s = { running: false, known: true, why: '', paused: !!sys.paused };
+      if (sys.paused) { s.why = 'the whole team is paused' + (sys.since ? ' since ' + sys.since : '') + (sys.by ? ', by ' + sys.by : '') + (sys.reason ? ', for ' + sys.reason : ''); return s; }
+      if (ag && (ag.enabled === false || ag.switchedOn !== true)) { s.why = who + ' is switched off' + (ag.pausedBy ? ' (' + ag.pausedBy + ')' : ''); return s; }
+      if (beat && Date.now() - beat < 100 * 60000) { s.running = true; s.why = 'the pickup last ran ' + ehAgo(beat); return s; }
+      s.known = false; s.why = 'there is no sign of the pickup in the last 100 minutes' + (run ? '; the last agent run on record was ' + ehAgo(Date.parse(run.updated_at)) : '; there is no agent run on record'); return s;
+    });
+  };
+  window.EH_TASK_STATUS = function (taskId) {
+    return ehNewest('commands', 60).then(function (rows) {
+      var mine = rows.filter(function (r) { var d = r.data || {}; return d.createdBy === 'michael' || d.from === 'michael'; });
+      if (taskId) mine = mine.filter(function (r) { return r.id === taskId; });
+      mine = mine.slice(0, 5);
+      if (!mine.length) return JSON.stringify({ tasks: 0, note: taskId ? 'No task with that id is on record.' : 'No tasks from Mr. Evermore are on record.' });
+      return JSON.stringify({ tasks: mine.length, note: 'These are the records. status open and pickedUp false means nobody has started it. Only status done with a result is finished.', items: mine.map(function (r) { var d = r.data || {};
+        return { id: r.id, task: String(d.text || '').slice(0, 140), forAgent: d.agent, status: d.status || 'open', pickedUp: !!(d.bridge && d.bridge !== 'waiting'), given: ehAgo(+d.createdAt || Date.parse(r.updated_at)), lastChange: ehAgo(Date.parse(r.updated_at)), result: d.result ? String(d.result).slice(0, 200) : undefined, run: d.run || d.runId || undefined }; }) });
+    });
+  };
+  window.EH_SYSTEM_STATUS = function () {
+    return Promise.all([ehSys(), ehNewest('agents', 40), ehOne('meta', 'pickup'), ehNewest('runs', 1)]).then(function (v) {
+      var sys = v[0], ags = v[1], pk = v[2], run = v[3][0], on = [], off = [];
+      ags.forEach(function (r) { var d = r.data || {}; (d.enabled !== false && d.switchedOn === true ? on : off).push(r.id); });
+      var beat = pk ? (+(pk.data || {}).lastRunAt || Date.parse(pk.updated_at) || 0) : 0;
+      return JSON.stringify({ masterRecord: sys ? (sys.paused ? 'PAUSED' : 'RUNNING') : 'not readable', pausedSince: sys && sys.since, pausedBy: sys && sys.by, reason: sys && sys.reason,
+        note: sys && sys.paused ? 'The whole team is paused. The per-agent switches below may be out of date; the master record wins.' : 'If the pickup has not run in 100 minutes, say you cannot confirm the team is running.',
+        pickupLastRan: beat ? ehAgo(beat) : 'no record', lastAgentRun: run ? run.id + ', ' + ehAgo(Date.parse(run.updated_at)) : 'no record', agentsSwitchedOn: on.sort(), agentsSwitchedOff: off.sort() });
+    });
+  };
   window.EH_QUEUE_TASK = function (text, agent, via) {
     text = String(text || '').trim().slice(0, 1200); if (!text) return Promise.reject(new Error('The task was empty.'));
     agent = /^[a-z]{3,14}$/.test(agent || '') ? agent : 'relay';
@@ -6952,7 +6992,12 @@ window.__phrStage="ready";
       var due = now + (mins ? +mins * 60000 : hrs ? +hrs * 3600000 : 3 * 3600000), cid = 'v' + now.toString(36);
       var rec = { agent: agent, type: 'task', text: text, note: via === 'voice' ? 'Task Michael gave Phronesis by voice' : 'Task from Michael on the live hub', from: 'michael', parent: null, hop: 0,
         createdAt: now, createdBy: 'michael', status: 'open', due: due, dueText: nyFmt(due), via: via || 'livehub', bridge: 'waiting' };
-      return db.doc('commands/' + cid).set(rec).then(function () { return (agent === 'relay' ? 'Relay has it' : agent.charAt(0).toUpperCase() + agent.slice(1) + ' has it') + '. The team picks it up within the hour and starts on it.'; });
+      return db.doc('commands/' + cid).set(rec).then(function () { return window.EH_TEAM_STATE(agent); }).then(function (s) {
+        var who = agent.charAt(0).toUpperCase() + agent.slice(1);
+        if (s.running) return 'SAVED, NOT STARTED YET. Task ' + cid + ' is in the queue for ' + who + '. Proof the team is running: ' + s.why + '. The pickup collects it within the hour. Say it is saved and waiting; do not say anyone has started it. Use task_status later to check.';
+        if (s.known) return 'NOT STARTED. Task ' + cid + ' is saved in the queue, but nothing will happen: ' + s.why + '. Tell Mr. Evermore exactly that. Do not say ' + who + ' has it.';
+        return 'SAVED, BUT I CANNOT CONFIRM IT WILL START. Task ' + cid + ' is in the queue for ' + who + ', but ' + s.why + '. Tell Mr. Evermore you could not confirm the team is running.';
+      });
     });
   };
   // approvals (taps here, or Michael's word to Phronesis after he read the draft back): saved for the pickup, which applies them in the agents' hub
@@ -6984,7 +7029,7 @@ window.__phrStage="ready";
   }
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
-    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : Promise.reject(new Error('unknown tool'));
+    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : Promise.reject(new Error('unknown tool'));
     job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
   });
   addEventListener('message', function (e) {

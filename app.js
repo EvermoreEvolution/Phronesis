@@ -274,12 +274,12 @@
     });
   }
   function runTool(name, p) {
-    if (name === 'list_waiting' || name === 'approve_item') return hubTool(name, p);
+    if (name === 'list_waiting' || name === 'approve_item' || name === 'task_status' || name === 'system_status') return hubTool(name, p);
     if (name !== 'give_task') return Promise.reject(new Error('unknown tool ' + name));
     var task = String(p.task || '').trim(); if (!task) return Promise.reject(new Error('the task was empty'));
     if (window.parent === window) return Promise.reject(new Error('this page is not inside the Command hub, so the task could not be saved; open the hub and say it again'));
     return new Promise(function (res, rej) {
-      var id = 'k' + Date.now().toString(36); taskWait[id] = function (d) { d.ok ? res('queued: ' + (d.msg || 'Relay has it')) : rej(new Error(d.msg || 'the hub could not save it')); };
+      var id = 'k' + Date.now().toString(36); taskWait[id] = function (d) { d.ok ? res(String(d.msg || 'SAVED, BUT I CANNOT CONFIRM IT WILL START. The hub gave no detail.')) : rej(new Error(d.msg || 'the hub could not save it')); };
       window.parent.postMessage({ phr: 'live-task', id: id, task: task.slice(0, 1200), agent: String(p.agent || '').toLowerCase().trim() }, '*');
       setTimeout(function () { if (taskWait[id]) { delete taskWait[id]; rej(new Error('the hub did not answer')); } }, 8000);
     });
