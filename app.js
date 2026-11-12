@@ -245,7 +245,7 @@
       case 'agent_response_correction':
         var c = d.agent_response_correction_event || {}; if (c.corrected_agent_response) say(c.corrected_agent_response); break;
       case 'user_transcript':
-        var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u);
+        var u = (d.user_transcription_event || {}).user_transcript || ''; L('heard: ' + u); try { instantRoute(u); } catch (e) {}
         if (u) { say('', u); setStatus('thinking', 'Thinking'); if (head) head.setState('processing'); clearIdle(); awaitingT = Date.now();
           if (/\b(that'?s all|that is all|that is it|that'?ll be all|that will be all|that'?s it|you'?re dismissed|you are dismissed|dismissed|nothing more|that will do|that'?ll do|good ?night|good ?bye|bye for now)\b/i.test(u)) { dismissing = true; L('dismissal heard'); setTimeout(function () { if (dismissing && live && !playing.length) restAfterVoice(); }, 6000); } }
         break;
@@ -273,6 +273,47 @@
       setTimeout(function () { if (taskWait[id]) { delete taskWait[id]; rej(new Error('the hub did not answer')); } }, 8000);
     });
   }
+  var DEEP_URL = 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_9701m777e43wfqfa9q7aj9yfxhnj';
+  var instant = { name: '', at: 0, result: '' };
+  function openScreen(scr) {
+    if (scr === 'brain' || scr === 'notes') return brainAsk({ op: 'show', note: 'Home.md' }).then(function (r) { return r.ok ? 'OPENED the brain (Home note) in ' + r['in'] + '.' : 'NOT OPENED. ' + (r.error || ''); });
+    return hubTool('open_screen', { screen: scr });
+  }
+  // Tier 1 router: fixed commands are recognised from his words by the page itself, with no model, and done at once.
+  var SCREEN_WORDS = [[/\b(leads?)\b/, 'leads'], [/\b(approved|approvals)\b/, 'approved'], [/\b(web ?sites?|sites|demos?)\b/, 'websites'], [/\b(creations|designs|posters|flyers)\b/, 'creations'], [/\bmy style\b/, 'style'],
+    [/\b(opportunit(y|ies))\b/, 'opportunities'], [/\b(what'?s waiting|what is waiting|needs me|needs you|waiting on me)\b/, 'waiting'], [/\b(the team|agents)\b/, 'team'], [/\b(office|world)\b/, 'office'],
+    [/\b(numbers|overview|money|scoreboard)\b/, 'numbers'], [/\b(operations)\b/, 'operations'], [/\b(settings)\b/, 'settings'], [/\b(brain|notes|vault|obsidian)\b/, 'brain'], [/\b(home|command (screen|centre|center)|main screen)\b/, 'home']];
+  function instantRoute(u) {
+    var t = String(u || '').toLowerCase().replace(/[.,!?]/g, ' ');
+    var m = /^\s*(?:please\s+|phronesis\s+|can you\s+|could you\s+)*(?:show(?: me)?|open(?: up)?|pull up|bring up|go to|take me to|let me see|display)\s+(?:me\s+)?(?:the\s+|my\s+)?(.{2,40})$/.exec(t);
+    if (!m || m[1].trim().split(/\s+/).length > 4 || /\b(why|how|when|whether|if|did|does|do|compared|versus|about|that|which)\b/.test(m[1])) return;   // only a short, plain command; anything longer is left to him to understand
+    for (var i = 0; i < SCREEN_WORDS.length; i++) if (SCREEN_WORDS[i][0].test(m[1])) {
+      var scr = SCREEN_WORDS[i][1], t0 = performance.now(); instant = { name: scr, at: Date.now(), result: '' };
+      openScreen(scr).then(function (r) { instant.result = r + ' (done instantly, ' + Math.round(performance.now() - t0) + ' ms after he finished speaking)'; L('instant: ' + scr + ' -> ' + r); }, function (e) { instant = { name: '', at: 0, result: '' }; L('instant failed: ' + scr + ' ' + (e && e.message)); });
+      return;
+    }
+  }
+  function thinkDeep(q) {
+    q = q.trim(); if (q.length < 8) return Promise.reject(new Error('the question was too short to think through'));
+    var t0 = performance.now();
+    return brainAsk({ op: 'recall', q: q }).then(function (r) { return r; }, function () { return { found: 0 }; }).then(function (r) {
+      var notes = (r.notes || []).map(function (n) { return '[' + n.note + ' / ' + n.section + '] ' + n.text; }).join('\n\n');
+      var msg = 'QUESTION: ' + q + '\n\nNOTES FROM THE BRAIN:\n' + (notes || '(no note in the brain covers this)');
+      return new Promise(function (res, rej) {
+        var w, done = false, timer = setTimeout(function () { if (!done) { done = true; try { w.close(); } catch (e) {} rej(new Error('the deep model did not answer within 40 seconds')); } }, 40000);
+        try { w = new WebSocket(DEEP_URL); } catch (e) { clearTimeout(timer); return rej(new Error('could not reach the deep model')); }
+        w.onopen = function () { w.send(JSON.stringify({ type: 'conversation_initiation_client_data', conversation_config_override: { conversation: { text_only: true } } })); };
+        w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; }
+          if (d.type === 'conversation_initiation_metadata') w.send(JSON.stringify({ type: 'user_message', text: msg.slice(0, 9000) }));
+          else if (d.type === 'ping') w.send(JSON.stringify({ type: 'pong', event_id: (d.ping_event || {}).event_id }));
+          else if (d.type === 'agent_response' && !done) { done = true; clearTimeout(timer); var a = ((d.agent_response_event || {}).agent_response || '').trim(); try { w.close(); } catch (e) {}
+            var secs = ((performance.now() - t0) / 1000).toFixed(1); L('deep answer in ' + secs + ' s, notes ' + (r.found || 0));
+            a ? res('DEEP ANSWER (Claude Opus, ' + secs + ' s, ' + (r.found ? 'with ' + r.found + ' of his notes' : 'no note on this in the brain') + '). Say this to him as it is, lightly fitted to your manner, changing no fact: ' + a) : rej(new Error('the deep model returned nothing')); } };
+        w.onerror = function () { if (!done) { done = true; clearTimeout(timer); rej(new Error('could not reach the deep model')); } };
+        w.onclose = function () { if (!done) { done = true; clearTimeout(timer); rej(new Error('the deep model closed before answering')); } };
+      });
+    });
+  }
   var brainWait = {};
   function brainAsk(o) {
     if (!lis || lis.readyState !== 1) return Promise.reject(new Error('the brain lives on the PC and the listener is not connected, so I cannot reach my notes right now'));
@@ -284,6 +325,11 @@
   function runTool(name, p) {
     if (name === 'list_waiting' || name === 'approve_item' || name === 'task_status' || name === 'system_status') return hubTool(name, p);
     // Nov 12 (stage 2): his memory is the Obsidian vault on the PC; the listener searches it, adds to it, and opens notes
+    // ----- Stage 3 (Nov 12): tiers -----
+    // Tier 1, instant: opening a screen or the brain needs no thinking. If the page already did it the moment he spoke, say so.
+    if (name === 'open_screen') { var scr = String(p.screen || '').toLowerCase().trim(); if (instant.name === scr && Date.now() - instant.at < 8000) return Promise.resolve(instant.result || ('ALREADY OPEN: ' + scr + ' was opened the moment he asked.')); return openScreen(scr); }
+    // Tier 3, deep: a hard question goes to the strongest model, with his own notes on the subject attached
+    if (name === 'think_it_through') return thinkDeep(String(p.question || ''));
     if (name === 'recall') return brainAsk({ op: 'recall', q: String(p.question || p.q || '') }).then(function (r) { return JSON.stringify(r); });
     if (name === 'remember') return brainAsk({ op: 'remember', text: String(p.text || '') }).then(function (r) { return r.ok ? 'SAVED in ' + r.savedIn + ' at ' + r.at + ' (' + r.proof + ').' : 'NOT SAVED. ' + (r.error || r.proof || 'The brain did not confirm it.'); });
     if (name === 'show_note') return brainAsk({ op: 'show', note: String(p.note || '') }).then(function (r) { return r.ok ? 'OPENED ' + r.opened + ' in ' + r['in'] + '.' : 'NOT OPENED. ' + (r.error || ''); });

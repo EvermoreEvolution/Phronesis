@@ -6983,6 +6983,21 @@ window.__phrStage="ready";
         pickupLastRan: beat ? ehAgo(beat) : 'no record', lastAgentRun: run ? run.id + ', ' + ehAgo(Date.parse(run.updated_at)) : 'no record', agentsSwitchedOn: on.sort(), agentsSwitchedOff: off.sort() });
     });
   };
+  /* Stage 3 (Nov 12): he opens the hub's screens when asked. No thinking is needed for this; the page does it at once. */
+  var EH_SCREENS = { home: ['', null, 'the Command screen'], command: ['', null, 'the Command screen'], leads: ['work', 'leads', 'Leads'], approved: ['work', 'approved', 'Approved drafts'], websites: ['work', 'websites', 'Websites'],
+    creations: ['work', 'creations', 'Creations'], style: ['work', 'style', 'My style'], content: ['work', 'content', 'Content'], opportunities: ['work', 'opps', 'Opportunities'], work: ['work', null, 'Work'],
+    waiting: ['needs', null, 'Needs you'], team: ['agents', null, 'the Agents'], office: ['world', null, 'the office'], numbers: ['overview', null, 'the Overview'], operations: ['ops', null, 'Operations'], settings: ['prefs', null, 'Settings'] };
+  window.EH_OPEN_SCREEN = function (name) {
+    var s = EH_SCREENS[String(name || '').toLowerCase().trim()];
+    if (!s) return Promise.reject(new Error('There is no screen called "' + name + '". The screens are: ' + Object.keys(EH_SCREENS).join(', ') + '.'));
+    try { if (s[0]) location.hash = s[0]; else { history.replaceState(null, '', location.pathname + location.search); window.dispatchEvent(new Event('hashchange')); } } catch (e) { return Promise.reject(new Error('The screen did not change: ' + e.message)); }
+    return new Promise(function (res) { setTimeout(function () {
+      var note = '';
+      if (s[1]) { var b = document.querySelector('[data-wtab="' + s[1] + '"]'); if (b) b.click(); else note = ' The ' + s[2] + ' tab was not found, so Work is showing its last tab.'; }
+      var app = document.getElementById('app'), want = s[0] === 'prefs' ? 'settings' : (s[0] || 'command'), got = app && app.dataset.view;
+      res(got === want ? 'OPENED ' + s[2] + '.' + note : 'NOT CONFIRMED. I asked for ' + s[2] + ' but the hub shows "' + got + '".');
+    }, 260); });
+  };
   window.EH_QUEUE_TASK = function (text, agent, via) {
     text = String(text || '').trim().slice(0, 1200); if (!text) return Promise.reject(new Error('The task was empty.'));
     agent = /^[a-z]{3,14}$/.test(agent || '') ? agent : 'relay';
@@ -7029,7 +7044,7 @@ window.__phrStage="ready";
   }
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
-    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : Promise.reject(new Error('unknown tool'));
+    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : Promise.reject(new Error('unknown tool'));
     job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
   });
   addEventListener('message', function (e) {
