@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794500443';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794517714';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -328,7 +328,27 @@
       setTimeout(function () { if (brainWait[id]) { delete brainWait[id]; rej(new Error('the brain did not answer')); } }, 6000);
     });
   }
+  // Stage 5 (Nov 12): his hands and eyes on the PC, through the listener
+  function pcAsk(o, ms) {
+    if (!lis || lis.readyState !== 1) return Promise.reject(new Error('the listener on the PC is not connected, so I cannot reach the PC right now'));
+    return new Promise(function (res, rej) {
+      var id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); o.cmd = 'pc'; o.id = id; brainWait[id] = res; lisSend(o);
+      setTimeout(function () { if (brainWait[id]) { delete brainWait[id]; rej(new Error('the PC did not answer in time')); } }, ms || 12000);
+    });
+  }
+  function pcTool(name, p) {
+    if (name === 'open_on_pc') return pcAsk({ op: 'open', what: String(p.what || ''), path: p.path ? String(p.path) : undefined }).then(function (r) {
+      if (r.ok) return 'OPENED ' + r.opened + ' (' + (r.kind || 'note') + (r['in'] ? ', in ' + r['in'] : '') + ').';
+      if (r.choose) return 'NOT OPENED YET. ' + r.error + ' The matches: ' + JSON.stringify(r.choose);
+      return 'NOT OPENED. ' + (r.error || 'unknown reason'); });
+    if (name === 'find_file') return pcAsk({ op: 'find', name: String(p.name || '') }).then(function (r) { return r.found ? JSON.stringify(r) : 'NOTHING FOUND called "' + (p.name || '') + '" in ' + r.searched + '.'; });
+    if (name === 'create_file') return pcAsk({ op: 'create', name: String(p.name || ''), text: String(p.text || '') }).then(function (r) {
+      return r.ok ? 'SAVED "' + r.saved + '" in ' + r['in'] + ' (' + r.characters + ' characters, ' + r.proof + ')' + (r.opened ? ' and opened it.' : '. It was not opened' + (r.openError ? ': ' + r.openError : '') + '.') : 'NOT SAVED. ' + (r.error || 'unknown reason'); });
+    if (name === 'look_at_screen') return pcAsk({ op: 'screen' }, 32000).then(function (r) { return JSON.stringify(r); });
+    return Promise.reject(new Error('unknown tool ' + name));
+  }
   function runTool(name, p) {
+    if (name === 'open_on_pc' || name === 'find_file' || name === 'create_file' || name === 'look_at_screen') return pcTool(name, p || {});
     if (name === 'list_waiting' || name === 'approve_item' || name === 'task_status' || name === 'system_status' || name === 'whats_new') return hubTool(name, p);
     // Nov 12 (stage 2): his memory is the Obsidian vault on the PC; the listener searches it, adds to it, and opens notes
     // ----- Stage 3 (Nov 12): tiers -----
@@ -382,7 +402,7 @@
   function lisConnect() {
     var w; try { w = new WebSocket('ws://127.0.0.1:8770'); } catch (e) { return; }
     w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); lisSend({ ver: PHR_VER }); setTimeout(brainMap, 600); };
-    w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.id && d.brain && brainWait[d.id]) { var bw = brainWait[d.id]; delete brainWait[d.id]; bw(d.brain); return; } if (d.id && AV.tok[d.id]) { var t = AV.tok[d.id]; delete AV.tok[d.id]; if (d.anamToken) t.res(d.anamToken); else t.rej(new Error(d.anamError || 'no token')); return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
+    w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.id && d.brain && brainWait[d.id]) { var bw = brainWait[d.id]; delete brainWait[d.id]; bw(d.brain); return; } if (d.id && d.pc && brainWait[d.id]) { var pw = brainWait[d.id]; delete brainWait[d.id]; pw(d.pc); return; } if (d.id && AV.tok[d.id]) { var t = AV.tok[d.id]; delete AV.tok[d.id]; if (d.anamToken) t.res(d.anamToken); else t.rej(new Error(d.anamError || 'no token')); return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
     w.onclose = function () { if (lis === w) { toHub({ brainMap: null }); lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } lisWait = lisOn || lis ? 3000 : Math.min(30000, lisWait * 1.6); setTimeout(lisConnect, lisWait); };
     w.onerror = function () {};
   }
