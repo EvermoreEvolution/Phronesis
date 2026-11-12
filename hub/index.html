@@ -5088,7 +5088,12 @@ function seedDay() {
 /* the state of one agent at simulated time t */
 function agentState(id, t) {
   var out = { s: 'waiting', p: 0, run: null, next: null, left: 0 };
-  if (MODE === 'live') { var lag = HUBX.agents[id]; if (!lag || !lag.switchedOn) { out.s = 'dormant'; out.note = 'Not switched on yet'; return out; } }
+  if (MODE === 'live') { var lag = HUBX.agents[id];
+    /* Nov 12 audit: asleep and folded agents say so, with what wakes them or who took over; a paused agent says who paused it */
+    if (lag && lag.audit === 'asleep') { out.s = 'dormant'; out.note = 'Asleep' + (lag.wakesWhen ? ' · wakes ' + lag.wakesWhen : ''); return out; }
+    if (lag && lag.audit === 'folded') { out.s = 'dormant'; out.note = 'Folded into ' + (lag.foldedInto && A[lag.foldedInto] ? A[lag.foldedInto].name : (lag.foldedInto || 'another agent')); return out; }
+    if (!lag || !lag.switchedOn) { out.s = 'dormant'; out.note = 'Not switched on yet'; return out; }
+    if (lag.enabled === false) { out.s = 'paused'; out.note = 'Paused' + (lag.pausedBy ? ' by ' + String(lag.pausedBy).replace(/\s*\(.*$/, '') : ''); return out; } }
   var ov = ovr[id]; if (ov && (ov.until == null || ov.until > t)) { out.s = ov.s; out.note = ov.note; return out; }
   if (!prefs[id].on) { out.s = 'paused'; out.note = MODE === 'live' ? 'Stopped by you' : 'Stopped by you (demo)'; return out; }
   var last = null, i, r;
@@ -7034,7 +7039,7 @@ window.__phrStage="ready";
   /* Nov 12: (1) the hub and Phronesis reload themselves when a new version is published, so he never runs an old page for hours.
      (2) The brain in the corner: a living picture of his notes on the PC. Each dot is a note, each line a link between notes.
      It lights the notes he just used. Green means the brain is connected; grey means the listener on the PC is not. */
-  var EH_VER = '1794498615';
+  var EH_VER = '1794500443';
   (function () {
     var born = Date.now();
     function check() {
