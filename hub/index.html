@@ -6983,10 +6983,58 @@ window.__phrStage="ready";
         pickupLastRan: beat ? ehAgo(beat) : 'no record', lastAgentRun: run ? run.id + ', ' + ehAgo(Date.parse(run.updated_at)) : 'no record', agentsSwitchedOn: on.sort(), agentsSwitchedOff: off.sort() });
     });
   };
+  /* Nov 12 (stage 4): what has come in. The pickup reads his inbox each hour and records business mail, enquiries and replies as news.
+     Phronesis answers "what's new" from these records only, and a card shows them on the hub without his asking. */
+  function ehNewsRead() {
+    return Promise.all([ehNewest('news', 30), ehOne('meta', 'pickup')]).then(function (v) {
+      var pk = (v[1] && v[1].data) || {}, at = +pk.mailCheckedAt || 0;
+      var items = v[0].filter(function (r) { return r.data && r.data.status === 'new'; }).sort(function (a, b) { return (+b.data.at || 0) - (+a.data.at || 0); });
+      return { items: items, checkedAt: at, fresh: at && Date.now() - at < 100 * 60000, mailError: pk.mailError || '' };
+    });
+  }
+  window.EH_WHATS_NEW = function () {
+    return ehNewsRead().then(function (n) {
+      var out = { mailLastChecked: n.checkedAt ? ehAgo(n.checkedAt) : 'no record', newItems: n.items.length,
+        note: !n.checkedAt ? 'There is no record that the inbox was ever checked. Say you cannot tell him what has come in.' : !n.fresh ? 'The inbox was last checked ' + ehAgo(n.checkedAt) + ', which is too long ago to be sure nothing newer has arrived. Say so.' : n.items.length ? 'Tell him these, most important first (replies and enquiries before money and other business). Say who, which business, and what they want. Never read out an address or a link.' : 'Nothing new has been recorded since he was last told.',
+        items: n.items.slice(0, 8).map(function (r) { var d = r.data; return { kind: d.kind, business: d.brand, from: String(d.from || '').replace(/[,<(]?\s*\S+@\S+.*$/, '').trim() || 'unknown sender', subject: d.subject, gist: d.gist, arrived: d.at ? ehAgo(+d.at) : 'time unknown' }; }) };
+      if (n.mailError) out.problem = n.mailError;
+      if (!n.items.length || !window.claude || !window.claude.use) return JSON.stringify(out);
+      // once he has been told, they stop counting as new
+      return window.claude.use('db').then(function (db) { if (!db) return; var now = Date.now();
+        return Promise.all(n.items.slice(0, 8).map(function (r) { var d = Object.assign({}, r.data, { status: 'told', toldAt: now, toldVia: 'voice' }); return db.doc('news/' + r.id).set(d).catch(function () {}); })); })
+        .then(function () { ehNewsCard(); return JSON.stringify(out); }, function () { return JSON.stringify(out); });
+    });
+  };
+  var ehNewsSeen = {}; try { ehNewsSeen = JSON.parse(localStorage.getItem('ehNewsSeen') || '{}'); } catch (e) {}
+  function ehNewsCard() {
+    if (!window.HUBDB || !window.HUBDB.client || document.hidden) return;
+    ehNewsRead().then(function (n) {
+      var box = document.getElementById('ehNews'), items = n.items.filter(function (r) { return !ehNewsSeen[r.id]; });
+      if (!items.length) { if (box) box.remove(); return; }
+      if (!box) {
+        var st = document.createElement('style');
+        st.textContent = '#ehNews{position:fixed;top:18px;right:18px;z-index:60;width:min(340px,calc(100vw - 36px));background:rgba(6,11,26,.92);border:1px solid rgba(228,190,123,.55);border-radius:14px;padding:12px 14px;box-shadow:0 10px 40px rgba(0,0,0,.5);color:#dfe6f5;font:13px/1.4 system-ui,sans-serif;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}#ehNews h4{margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;font:600 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;text-transform:uppercase;color:#e4be7b}#ehNews button{background:none;border:0;color:#9fb0cf;font-size:16px;line-height:1;cursor:pointer;padding:2px 4px}#ehNews button:hover{color:#fff}#ehNews li{list-style:none;margin:0 0 8px;padding:0}#ehNews ul{margin:0;padding:0}#ehNews b{color:#fff;font-weight:600}#ehNews i{font-style:normal;color:#8fa3c8;font-size:11px;display:block}';
+        document.head.appendChild(st);
+        box = document.createElement('div'); box.id = 'ehNews'; box.setAttribute('role', 'status'); document.body.appendChild(box);
+        try { var A = new (window.AudioContext || window.webkitAudioContext)(), o = A.createOscillator(), g = A.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.0001, A.currentTime); g.gain.exponentialRampToValueAtTime(0.05, A.currentTime + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, A.currentTime + 0.7); o.connect(g); g.connect(A.destination); o.start(); o.stop(A.currentTime + 0.75); } catch (e) {}
+      }
+      box.textContent = '';
+      var h = document.createElement('h4'), t = document.createElement('span'), x = document.createElement('button'), ul = document.createElement('ul');
+      t.textContent = items.length + ' new for you'; x.textContent = '×'; x.title = 'Dismiss'; x.setAttribute('aria-label', 'Dismiss');
+      x.onclick = function () { items.forEach(function (r) { ehNewsSeen[r.id] = 1; }); try { localStorage.setItem('ehNewsSeen', JSON.stringify(ehNewsSeen)); } catch (e) {} box.remove(); };
+      h.appendChild(t); h.appendChild(x); box.appendChild(h);
+      items.slice(0, 4).forEach(function (r) { var d = r.data, li = document.createElement('li'), b = document.createElement('b'), i = document.createElement('i');
+        b.textContent = ({ reply: 'Reply', enquiry: 'Enquiry', money: 'Money', business: 'Business' })[d.kind] || 'Mail'; li.appendChild(b); li.appendChild(document.createTextNode(' · ' + String(d.gist || d.subject || '')));
+        i.textContent = String(d.brand || '') + (d.at ? ' · ' + ehAgo(+d.at) : ''); li.appendChild(i); ul.appendChild(li); });
+      box.appendChild(ul);
+      if (!n.fresh) { var w = document.createElement('i'); w.textContent = 'Inbox last checked ' + (n.checkedAt ? ehAgo(n.checkedAt) : 'never') + '.'; box.appendChild(w); }
+    }).catch(function () {});
+  }
+  setTimeout(ehNewsCard, 6000); setInterval(ehNewsCard, 300000); document.addEventListener('visibilitychange', function () { if (!document.hidden) ehNewsCard(); });
   /* Nov 12: (1) the hub and Phronesis reload themselves when a new version is published, so he never runs an old page for hours.
      (2) The brain in the corner: a living picture of his notes on the PC. Each dot is a note, each line a link between notes.
      It lights the notes he just used. Green means the brain is connected; grey means the listener on the PC is not. */
-  var EH_VER = '1794466510';
+  var EH_VER = '1794497548';
   (function () {
     var born = Date.now();
     function check() {
@@ -7122,7 +7170,7 @@ window.__phrStage="ready";
   }
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
-    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : Promise.reject(new Error('unknown tool'));
+    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : d.name === 'whats_new' ? window.EH_WHATS_NEW() : Promise.reject(new Error('unknown tool'));
     job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
   });
   addEventListener('message', function (e) {

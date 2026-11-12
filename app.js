@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794466510';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794497548';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -329,7 +329,7 @@
     });
   }
   function runTool(name, p) {
-    if (name === 'list_waiting' || name === 'approve_item' || name === 'task_status' || name === 'system_status') return hubTool(name, p);
+    if (name === 'list_waiting' || name === 'approve_item' || name === 'task_status' || name === 'system_status' || name === 'whats_new') return hubTool(name, p);
     // Nov 12 (stage 2): his memory is the Obsidian vault on the PC; the listener searches it, adds to it, and opens notes
     // ----- Stage 3 (Nov 12): tiers -----
     // Tier 1, instant: opening a screen or the brain needs no thinking. If the page already did it the moment he spoke, say so.
