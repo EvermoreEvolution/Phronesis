@@ -6983,6 +6983,84 @@ window.__phrStage="ready";
         pickupLastRan: beat ? ehAgo(beat) : 'no record', lastAgentRun: run ? run.id + ', ' + ehAgo(Date.parse(run.updated_at)) : 'no record', agentsSwitchedOn: on.sort(), agentsSwitchedOff: off.sort() });
     });
   };
+  /* Nov 12: (1) the hub and Phronesis reload themselves when a new version is published, so he never runs an old page for hours.
+     (2) The brain in the corner: a living picture of his notes on the PC. Each dot is a note, each line a link between notes.
+     It lights the notes he just used. Green means the brain is connected; grey means the listener on the PC is not. */
+  var EH_VER = '1794466510';
+  (function () {
+    var born = Date.now();
+    function check() {
+      fetch('../version.json?x=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (!j || !j.v || String(j.v) === EH_VER) return;
+        var ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && (ae.value || '').length > 0;
+        if (document.body.classList.contains('phr-live') || typing) return;   // never while he is talking or typing; try again next round
+        var q = new URLSearchParams(location.search), keepWake = q.get('wake') === '1' && Date.now() - born < 20000;
+        location.replace(location.pathname + '?r=' + encodeURIComponent(j.v) + (keepWake ? '&wake=1' : '') + location.hash);
+      }).catch(function () {});
+    }
+    setTimeout(check, 4000); setInterval(check, 120000);
+  })();
+  (function () {
+    var foot = document.querySelector('.nav .foot'); if (!foot) return;
+    var st = document.createElement('style');
+    st.textContent = '#ehBrain{margin-top:auto;padding:10px 8px 10px;border-top:1px solid var(--line);cursor:pointer;outline:none;display:grid;gap:6px}#ehBrain+.foot{margin-top:0}#ehBrain .bh{display:flex;justify-content:space-between;align-items:baseline;font:600 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6ff0b4}#ehBrain .bh b{font-weight:500;letter-spacing:.08em;color:rgba(170,200,190,.7)}#ehBrain canvas{width:100%;height:150px;display:block;border-radius:10px;background:radial-gradient(ellipse at 50% 55%,rgba(40,220,140,.10),rgba(4,10,18,0) 70%)}#ehBrain .bs{font:11px/1.35 system-ui,sans-serif;color:rgba(190,215,205,.78);min-height:30px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}#ehBrain.off .bh{color:rgba(160,170,185,.7)}#ehBrain:hover canvas,#ehBrain:focus-visible canvas{box-shadow:inset 0 0 0 1px rgba(111,240,180,.35)}@media (max-width:900px),(max-height:700px){#ehBrain{display:none}}';
+    document.head.appendChild(st);
+    var box = document.createElement('div'); box.id = 'ehBrain'; box.className = 'off'; box.tabIndex = 0; box.setAttribute('role', 'button'); box.title = 'His brain: the notes on the PC. Click to open them.';
+    box.innerHTML = '<div class="bh"><span>Brain</span><b id="ehBrainN">not connected</b></div><canvas aria-hidden="true"></canvas><div class="bs" id="ehBrainS">Waiting for the listener on the PC.</div>';
+    foot.parentNode.insertBefore(box, foot);
+    var cv = box.querySelector('canvas'), cx = cv.getContext('2d'), nEl = box.querySelector('#ehBrainN'), sEl = box.querySelector('#ehBrainS');
+    var N = [], E = [], sparks = [], lit = {}, on = false, idleText = '', W = 0, H = 0, lastSpark = 0, pulseUntil = 0;
+    function frame() { return document.getElementById('phrLive'); }
+    function say(t) { sEl.textContent = t; }
+    function layout(notes) {
+      var by = {}, i, j, k;
+      N = notes.map(function (n, i) { var a = i * 2.39996, r = .12 + .3 * Math.sqrt((i + .5) / notes.length); var o = { n: n.n, t: n.t, x: .5 + r * Math.cos(a), y: .5 + r * Math.sin(a), s: 1.5 + Math.min(2.6, Math.log(1 + (n.k || 500) / 700)), ph: i * 1.7, d: 0 }; by[n.t.toLowerCase()] = o; return o; });
+      E = []; var seen = {};
+      notes.forEach(function (n, i) { (n.l || []).forEach(function (l) { var b = by[String(l).toLowerCase()], a = N[i]; if (!b || b === a) return; var key = a.n < b.n ? a.n + '|' + b.n : b.n + '|' + a.n; if (seen[key]) return; seen[key] = 1; E.push([a, b]); a.d++; b.d++; }); });
+      for (k = 0; k < 220; k++) {   // a small spring layout, worked out once
+        for (i = 0; i < N.length; i++) { var a = N[i], fx = (.5 - a.x) * .02, fy = (.5 - a.y) * .03;
+          for (j = 0; j < N.length; j++) if (i !== j) { var dx = a.x - N[j].x, dy = a.y - N[j].y, d2 = dx * dx + dy * dy + .0006; fx += dx / d2 * .00042; fy += dy / d2 * .00042; }
+          a.vx = fx; a.vy = fy; }
+        E.forEach(function (e) { var dx = e[1].x - e[0].x, dy = e[1].y - e[0].y, d = Math.sqrt(dx * dx + dy * dy) + 1e-6, f = (d - .16) * .06; e[0].vx += dx / d * f; e[0].vy += dy / d * f; e[1].vx -= dx / d * f; e[1].vy -= dy / d * f; });
+        N.forEach(function (a) { a.x = Math.min(.94, Math.max(.06, a.x + Math.max(-.03, Math.min(.03, a.vx)))); a.y = Math.min(.9, Math.max(.1, a.y + Math.max(-.03, Math.min(.03, a.vy)))); });
+      }
+    }
+    function size() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); W = r.width; H = r.height; if (!W) return; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    function P(a, t) { return [(a.x + Math.sin(t * .00035 + a.ph) * .012) * W, (a.y + Math.cos(t * .0003 + a.ph * 1.3) * .014) * H]; }
+    function draw(t) {
+      if (!W) size(); if (!W) return;
+      cx.clearRect(0, 0, W, H);
+      var G = on ? '70,240,160' : '150,160,175', hot = t < pulseUntil;
+      if (!N.length) {   // no map yet: a faint ring, honestly empty
+        for (var i = 0; i < 14; i++) { var a = i / 14 * 6.283 + t * .0001; cx.beginPath(); cx.arc(W / 2 + Math.cos(a) * W * .28, H / 2 + Math.sin(a) * H * .3, 1.4, 0, 6.3); cx.fillStyle = 'rgba(150,160,175,.35)'; cx.fill(); }
+        return;
+      }
+      cx.lineWidth = 1;
+      E.forEach(function (e) { var p = P(e[0], t), q = P(e[1], t), h = hot && (lit[e[0].n] || lit[e[1].n]); cx.strokeStyle = 'rgba(' + G + ',' + (h ? .55 : .16) + ')'; cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); });
+      if (on && E.length && t - lastSpark > (hot ? 140 : 900)) { lastSpark = t; var pool = hot ? E.filter(function (e) { return lit[e[0].n] || lit[e[1].n]; }) : E; if (!pool.length) pool = E; var e = pool[Math.floor(Math.random() * pool.length)]; sparks.push({ e: Math.random() < .5 ? e : [e[1], e[0]], t0: t, d: 700 + Math.random() * 500 }); }
+      sparks = sparks.filter(function (s) { var k = (t - s.t0) / s.d; if (k >= 1) return false; var p = P(s.e[0], t), q = P(s.e[1], t), x = p[0] + (q[0] - p[0]) * k, y = p[1] + (q[1] - p[1]) * k; cx.beginPath(); cx.arc(x, y, 1.6, 0, 6.3); cx.fillStyle = 'rgba(200,255,225,' + (.9 * Math.sin(k * 3.14)) + ')'; cx.fill(); return true; });
+      N.forEach(function (a) { var p = P(a, t), h = hot && lit[a.n], br = .55 + .25 * Math.sin(t * .0016 + a.ph);
+        if (h) { var k = ((t - (pulseUntil - 7000)) % 1400) / 1400; cx.beginPath(); cx.arc(p[0], p[1], a.s + 3 + k * 12, 0, 6.3); cx.strokeStyle = 'rgba(160,255,205,' + (.7 * (1 - k)) + ')'; cx.stroke(); }
+        cx.beginPath(); cx.arc(p[0], p[1], a.s * (h ? 1.7 : 1), 0, 6.3); cx.fillStyle = h ? 'rgba(215,255,232,1)' : 'rgba(' + G + ',' + (on ? br : .4) + ')'; cx.shadowColor = 'rgba(' + G + ',.9)'; cx.shadowBlur = on ? (h ? 14 : 6) : 0; cx.fill(); cx.shadowBlur = 0; });
+      if (!hot && idleText && sEl.textContent !== idleText) { lit = {}; say(idleText); }
+    }
+    var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, last = 0;
+    function loop(t) { requestAnimationFrame(loop); if (document.hidden || t - last < (still ? 1000 : 42)) return; last = t; draw(still ? 0 : t); }   // about 24 pictures a second; nothing while the hub is hidden
+    requestAnimationFrame(loop); addEventListener('resize', function () { W = 0; });
+    function open() { var f = frame(); if (!on) { say('The brain is on the PC, and the listener there is not connected.'); return; } if (f) try { f.contentWindow.postMessage({ phr: 'live-cmd', cmd: 'open-brain' }, '*'); say('Opening the notes in Obsidian.'); pulseUntil = performance.now() + 1500; } catch (e) {} }
+    box.addEventListener('click', open); box.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    addEventListener('message', function (e) {
+      var d = e.data, f = frame(); if (!d || d.phr !== 'live-state' || !f || e.source !== f.contentWindow) return;
+      if ('brainMap' in d) {
+        if (d.brainMap && d.brainMap.length) { var same = N.length === d.brainMap.length && on; if (!same) layout(d.brainMap); on = true; box.classList.remove('off'); nEl.textContent = N.length + ' notes · ' + E.length + ' links'; idleText = 'Connected. Lights up when he reads or saves a note.'; if (performance.now() > pulseUntil) say(idleText); }
+        else { on = false; box.classList.add('off'); nEl.textContent = 'not connected'; idleText = 'The listener on the PC is not connected, so he cannot read his notes.'; say(idleText); }
+      }
+      if (d.brainPulse) { var p = d.brainPulse, names = []; lit = {}; (p.notes || []).forEach(function (n) { lit[n] = 1; var t = String(n).split('/').pop().replace(/\.md$/, ''); if (names.indexOf(t) < 0) names.push(t); });
+        pulseUntil = performance.now() + 7000;
+        say(p.mode === 'save' ? 'Saved to the Inbox note.' : !names.length ? (p.mode === 'think' ? 'Thinking it through. No note covers this.' : 'Looked, and no note covers this.') : (p.mode === 'think' ? 'Thinking it through with: ' : 'Read: ') + names.join(', ') + '.'); }
+    });
+    setTimeout(function () { var f = frame(); if (f && !N.length) try { f.contentWindow.postMessage({ phr: 'live-cmd', cmd: 'brain-map' }, '*'); } catch (e) {} }, 9000);
+  })();
   /* Stage 3 (Nov 12): he opens the hub's screens when asked. No thinking is needed for this; the page does it at once. */
   var EH_SCREENS = { home: ['', null, 'the Command screen'], command: ['', null, 'the Command screen'], leads: ['work', 'leads', 'Leads'], approved: ['work', 'approved', 'Approved drafts'], websites: ['work', 'websites', 'Websites'],
     creations: ['work', 'creations', 'Creations'], style: ['work', 'style', 'My style'], content: ['work', 'content', 'Content'], opportunities: ['work', 'opps', 'Opportunities'], work: ['work', null, 'Work'],

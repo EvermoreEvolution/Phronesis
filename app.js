@@ -16,6 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
+  var PHR_VER = '1794466510';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -297,6 +298,7 @@
     q = q.trim(); if (q.length < 8) return Promise.reject(new Error('the question was too short to think through'));
     var t0 = performance.now();
     return brainAsk({ op: 'recall', q: q }).then(function (r) { return r; }, function () { return { found: 0 }; }).then(function (r) {
+      brainPulse('think', (r.notes || []).map(function (n) { return n.note; }));
       var notes = (r.notes || []).map(function (n) { return '[' + n.note + ' / ' + n.section + '] ' + n.text; }).join('\n\n');
       var msg = 'QUESTION: ' + q + '\n\nNOTES FROM THE BRAIN:\n' + (notes || '(no note in the brain covers this)');
       return new Promise(function (res, rej) {
@@ -315,6 +317,10 @@
     });
   }
   var brainWait = {};
+  // the picture of the brain in the hub's corner: the page passes the hub the shape of the notes, and which ones were just used
+  function brainMap() { if (!EMBED) return; brainAsk({ op: 'map' }).then(function (r) { if (r && r.notes) toHub({ brainMap: r.notes }); }, function () { toHub({ brainMap: null }); }); }
+  function brainPulse(mode, notes) { toHub({ brainPulse: { mode: mode, notes: notes || [] } }); }
+  setInterval(function () { if (lis && lis.readyState === 1) brainMap(); else toHub({ brainMap: null }); }, 180000);
   function brainAsk(o) {
     if (!lis || lis.readyState !== 1) return Promise.reject(new Error('the brain lives on the PC and the listener is not connected, so I cannot reach my notes right now'));
     return new Promise(function (res, rej) {
@@ -330,8 +336,8 @@
     if (name === 'open_screen') { var scr = String(p.screen || '').toLowerCase().trim(); if (instant.name === scr && Date.now() - instant.at < 8000) return Promise.resolve(instant.result || ('ALREADY OPEN: ' + scr + ' was opened the moment he asked.')); return openScreen(scr); }
     // Tier 3, deep: a hard question goes to the strongest model, with his own notes on the subject attached
     if (name === 'think_it_through') return thinkDeep(String(p.question || ''));
-    if (name === 'recall') return brainAsk({ op: 'recall', q: String(p.question || p.q || '') }).then(function (r) { return JSON.stringify(r); });
-    if (name === 'remember') return brainAsk({ op: 'remember', text: String(p.text || '') }).then(function (r) { return r.ok ? 'SAVED in ' + r.savedIn + ' at ' + r.at + ' (' + r.proof + ').' : 'NOT SAVED. ' + (r.error || r.proof || 'The brain did not confirm it.'); });
+    if (name === 'recall') return brainAsk({ op: 'recall', q: String(p.question || p.q || '') }).then(function (r) { brainPulse('recall', (r.notes || []).map(function (n) { return n.note; })); return JSON.stringify(r); });
+    if (name === 'remember') return brainAsk({ op: 'remember', text: String(p.text || '') }).then(function (r) { if (r.ok) { brainPulse('save', ['raw/Inbox.md']); } return r.ok ? 'SAVED in ' + r.savedIn + ' at ' + r.at + ' (' + r.proof + ').' : 'NOT SAVED. ' + (r.error || r.proof || 'The brain did not confirm it.'); });
     if (name === 'show_note') return brainAsk({ op: 'show', note: String(p.note || '') }).then(function (r) { return r.ok ? 'OPENED ' + r.opened + ' in ' + r['in'] + '.' : 'NOT OPENED. ' + (r.error || ''); });
     if (name !== 'give_task') return Promise.reject(new Error('unknown tool ' + name));
     var task = String(p.task || '').trim(); if (!task) return Promise.reject(new Error('the task was empty'));
@@ -375,9 +381,9 @@
   function lisSend(o) { try { if (lis && lis.readyState === 1) lis.send(JSON.stringify(o)); } catch (e) {} }
   function lisConnect() {
     var w; try { w = new WebSocket('ws://127.0.0.1:8770'); } catch (e) { return; }
-    w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); };
+    w.onopen = function () { lis = w; lisOn = true; stopWakeWord(); L('listener linked'); lisSend({ live: live }); lisSend({ ver: PHR_VER }); setTimeout(brainMap, 600); };
     w.onmessage = function (m) { var d; try { d = JSON.parse(m.data); } catch (e) { return; } if (d.id && d.brain && brainWait[d.id]) { var bw = brainWait[d.id]; delete brainWait[d.id]; bw(d.brain); return; } if (d.id && AV.tok[d.id]) { var t = AV.tok[d.id]; delete AV.tok[d.id]; if (d.anamToken) t.res(d.anamToken); else t.rej(new Error(d.anamError || 'no token')); return; } if (d.cmd === 'wake') { L('listener: wake'); if (!$('load').classList.contains('gone')) { if ($('load').classList.contains('ready')) { $('load').classList.add('gone'); greeted = true; wake(true); } else autoWake = true; } else if (!live) wake(!greeted && (greeted = true)); } };
-    w.onclose = function () { if (lis === w) { lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } lisWait = lisOn || lis ? 3000 : Math.min(30000, lisWait * 1.6); setTimeout(lisConnect, lisWait); };
+    w.onclose = function () { if (lis === w) { toHub({ brainMap: null }); lis = null; if (lisOn) { lisOn = false; if (!live) startWakeWord(); } } lisWait = lisOn || lis ? 3000 : Math.min(30000, lisWait * 1.6); setTimeout(lisConnect, lisWait); };
     w.onerror = function () {};
   }
   var autoWake = Q.get('wake') === '1';
@@ -458,6 +464,8 @@
       var d = e.data; if (!d || d.phr !== 'live-cmd') return;
       if (d.cmd === 'wake' && !live) { var f = !greeted; greeted = true; wake(f); }
       if (d.cmd === 'sleep' && live) sleep('', true);
+      if (d.cmd === 'open-brain') openScreen('brain').then(function (m) { L(m); }, function (e) { L('brain not opened: ' + (e && e.message)); });
+      if (d.cmd === 'brain-map') brainMap();
       if (d.cmd === 'dismiss' && live) {   // the Earth was clicked: a short sign-off in his voice, then he disintegrates
         dismissing = true; saidBye = false; stopVoice();
         if (ws) { try { ws.close(1000); } catch (x) {} }
