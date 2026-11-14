@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794645845';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794667252';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -298,6 +298,12 @@
     [/\b(numbers|overview|money|scoreboard)\b/, 'numbers'], [/\b(operations)\b/, 'operations'], [/\b(settings)\b/, 'settings'], [/\b(brain|notes|vault|obsidian)\b/, 'brain'], [/\b(home|command (screen|centre|center)|main screen)\b/, 'home']];
   function instantRoute(u) {
     var t = String(u || '').toLowerCase().replace(/[.,!?]/g, ' ');
+    /* Michael, Nov 14: while he is in conversation the microphone belongs to the call, so the PC listener
+       never hears "hands please" — it arrives here instead, as part of what he said. Catch it here too, and
+       act on it without troubling him for a reply. */
+    if (/\b(hands?|hand)\s+(off|away)\b/.test(t)) { L('hands off (said in conversation)'); toHub({ hands: false }); return; }
+    if (/\b(hands?|hand)\b/.test(t) && /\b(please|on|now|up|activate|give me|use my|try my|phronesis|furnaces|for nieces|frenzies)\b/.test(t)
+        && !/\b(off|away|stop|hide|close)\b/.test(t)) { L('hands on (said in conversation)'); toHub({ hands: true }); return; }
     var m = /^\s*(?:please\s+|phronesis\s+|can you\s+|could you\s+)*(?:show(?: me)?|open(?: up)?|pull up|bring up|go to|take me to|let me see|display)\s+(?:me\s+)?(?:the\s+|my\s+)?(.{2,40})$/.exec(t);
     if (!m || m[1].trim().split(/\s+/).length > 4 || /\b(why|how|when|whether|if|did|does|do|compared|versus|about|that|which)\b/.test(m[1])) return;   // only a short, plain command; anything longer is left to him to understand
     for (var i = 0; i < SCREEN_WORDS.length; i++) if (SCREEN_WORDS[i][0].test(m[1])) {
