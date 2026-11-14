@@ -25,10 +25,11 @@
     return q.then(function (r) { if (r.error) throw r.error; return r.data || []; });
   };
   Query.prototype.onSnapshot = function (cb, onErr) {
-    var self = this, prev = null, timer = null, alive = true;
+    var self = this, prev = null, timer = null, alive = true, chLive = false, lastAt = 0;
     function load() {
       self.fetch().then(function (rows) {
         if (!alive) return;
+        lastAt = Date.now();
         var map = {}, changes = [];
         rows.forEach(function (r) { map[r.id] = r; });
         if (prev) {
@@ -42,9 +43,16 @@
     load();
     var ch = sb.channel('docs-' + this.coll + '-' + Math.random().toString(36).slice(2))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'coll=eq.' + this.coll }, function () { clearTimeout(timer); timer = setTimeout(load, 250); })
-      .subscribe();
-    var poll = setInterval(load, 60000);   // a safety net if the live channel drops
-    return function () { alive = false; clearInterval(poll); try { sb.removeChannel(ch); } catch (e) {} };
+      .subscribe(function (st) { chLive = (st === 'SUBSCRIBED'); });
+    /* Michael, Nov 14: this line used to re-download every row of this collection once a
+       minute, around the clock, for every open page — about 9 GB of Supabase egress a day.
+       Realtime already pushes every change, so poll only when the live channel is NOT up,
+       never while the tab is hidden, and at ten minutes instead of one. */
+    var poll = setInterval(function () { if (!chLive && !document.hidden) load(); }, 600000);
+    function onVis() { if (!document.hidden && Date.now() - lastAt > 300000) load(); }
+    document.addEventListener('visibilitychange', onVis);
+    
+    return function () { alive = false; clearInterval(poll); try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} try { sb.removeChannel(ch); } catch (e) {} };
   };
 
   function Doc(path) { var p = splitPath(path); this.coll = p[0]; this.id = p[1]; }
@@ -1447,7 +1455,7 @@ function connect(){
   sub('leads',db.collection('leads').orderBy('updatedAt','desc').limit(800));
   sub('sales',db.collection('sales').orderBy('at','desc').limit(300));
   sub('meta',db.collection('meta'));
-  sub('sites',db.collection('sites').orderBy('builtAt','desc').limit(80));
+  sub('sites',db.collection('sites').orderBy('builtAt','desc').limit(12));  /* whole websites live in these rows: the Command page only needs the newest few; Work loads the rest */
   sub('creations',db.collection('creations').limit(200));
   sub('opps',db.collection('opps').limit(200));
   sub('news',db.collection('news').limit(60));
@@ -1913,7 +1921,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794635595';
+  var EH_VER = '1794637078';
   (function () {
     var born = Date.now();
     function check() {

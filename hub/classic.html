@@ -25,10 +25,11 @@
     return q.then(function (r) { if (r.error) throw r.error; return r.data || []; });
   };
   Query.prototype.onSnapshot = function (cb, onErr) {
-    var self = this, prev = null, timer = null, alive = true;
+    var self = this, prev = null, timer = null, alive = true, chLive = false, lastAt = 0;
     function load() {
       self.fetch().then(function (rows) {
         if (!alive) return;
+        lastAt = Date.now();
         var map = {}, changes = [];
         rows.forEach(function (r) { map[r.id] = r; });
         if (prev) {
@@ -42,9 +43,16 @@
     load();
     var ch = sb.channel('docs-' + this.coll + '-' + Math.random().toString(36).slice(2))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'coll=eq.' + this.coll }, function () { clearTimeout(timer); timer = setTimeout(load, 250); })
-      .subscribe();
-    var poll = setInterval(load, 60000);   // a safety net if the live channel drops
-    return function () { alive = false; clearInterval(poll); try { sb.removeChannel(ch); } catch (e) {} };
+      .subscribe(function (st) { chLive = (st === 'SUBSCRIBED'); });
+    /* Michael, Nov 14: this line used to re-download every row of this collection once a
+       minute, around the clock, for every open page — about 9 GB of Supabase egress a day.
+       Realtime already pushes every change, so poll only when the live channel is NOT up,
+       never while the tab is hidden, and at ten minutes instead of one. */
+    var poll = setInterval(function () { if (!chLive && !document.hidden) load(); }, 600000);
+    function onVis() { if (!document.hidden && Date.now() - lastAt > 300000) load(); }
+    document.addEventListener('visibilitychange', onVis);
+    
+    return function () { alive = false; clearInterval(poll); try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} try { sb.removeChannel(ch); } catch (e) {} };
   };
 
   function Doc(path) { var p = splitPath(path); this.coll = p[0]; this.id = p[1]; }
