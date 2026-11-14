@@ -106,7 +106,18 @@
   var box = document.getElementById('ehSign'), f = document.getElementById('ehForm'), msg = document.getElementById('ehMsg'), code = document.getElementById('ehCode'), btn = document.getElementById('ehBtn'), em = document.getElementById('ehEmail'), sent = false;
   function show(on) { box.hidden = !on; box.style.display = on ? 'grid' : 'none'; }
   if (!window.HUBDB || !window.HUBDB.client) { show(true); msg.textContent = 'The hub database is not set up yet.'; return; }
-  window.HUBDB.signedIn().then(function (ok) { show(!ok); });
+  /* Michael, Nov 14: a slow or throttled hub must not look like being signed out.
+     If a token is still stored, keep trying quietly instead of demanding a new link. */
+  var tries = 0;
+  function hasToken() { try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/auth-token/.test(k) && localStorage.getItem(k)) return true; } } catch (e) {} return false; }
+  function gate() {
+    window.HUBDB.signedIn().then(function (ok) {
+      if (ok) { show(false); return; }
+      if (hasToken() && tries < 6) { tries++; msg.textContent = ''; setTimeout(gate, 2500); return; }
+      show(true);
+    }, function () { if (tries < 6) { tries++; setTimeout(gate, 2500); } else show(true); });
+  }
+  gate();
   f.addEventListener('submit', function (e) {
     e.preventDefault(); var c = window.HUBDB.client;
     if (!sent) { msg.textContent = 'Sending…';
@@ -1902,7 +1913,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794633914';
+  var EH_VER = '1794635595';
   (function () {
     var born = Date.now();
     function check() {
