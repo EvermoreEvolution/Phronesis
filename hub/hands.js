@@ -1,140 +1,159 @@
-/* Phronesis hand control — Michael, Nov 14 2026.
-   Point to move the cursor, pinch to select, pinch and drag to move a panel or spin the world,
-   two hands pinched and pulled apart to open the orb, open palm to dismiss.
-   MediaPipe runs on his own machine from files served by this site. The camera picture never leaves the PC
-   and is never recorded: each frame is measured, drawn as a hand of light, and thrown away. */
+/* Phronesis hand control — Michael, Nov 14 2026 (second pass: holographic hands, steadier tap, far less lag).
+   Point to move, tap your index like a mouse button to click, pinch and hold to drag or spin the world,
+   two hands pinched and pulled apart to open the orb, open palm thrown sideways to dismiss.
+   MediaPipe runs on his own machine from files served by this site. The picture never leaves the PC and is
+   never recorded: each frame is measured, drawn as a hand of light, and thrown away.
+
+   Why this reads smoothly on a slow machine: READING the camera and DRAWING are separate. The camera is read
+   as often as the machine manages (maybe 15 times a second); the hand and the cursor are drawn every single
+   screen frame, carried between readings by their own speed. So the hand never stutters even when the
+   measurements are sparse. */
 (function () {
   'use strict';
   if (window.PHR_HANDS) return;
 
   var MP = '../head/mp/', MODEL = '../hands/hand_landmarker.task';
-  var T = {                           // everything he may want to feel different, saved on his machine
-    gain: 1.5,                        // how far a small hand movement travels on screen
-    box: 0.17,                        // the dead border of the camera view, so he need not reach the edges
-    smooth: 0.35,                     // 0 = raw and twitchy, 1 = heavy and laggy
-    pinchOn: 0.45, pinchOff: 0.62,    // how closed a pinch counts, and how open it releases
-    swipe: 1.6,                       // screens per second of palm movement that counts as a dismiss
-    tapDown: 0.74, tapUp: 0.86,       // how far the index must bend to count as a tap, and straighten to finish it
-    tapMs: 520,                       // a bend held longer than this is him lowering his hand, not tapping
-    tap: true,                        // point and tap to click; set false to use pinch only
+  var T = {
+    gain: 2.1,            // how far a small hand movement travels across the screen
+    box: 0.2,             // dead border of the camera view, so he need not reach the edges
+    follow: 19,           // how hard the cursor chases where his finger is (higher = snappier)
+    lead: 0.055,          // seconds of his own speed added ahead, to cancel the camera's delay
+    pinchOn: 0.45, pinchOff: 0.62,
+    tap: true, tapDown: 0.80, tapUp: 0.90, tapMs: 600,
+    swipe: 1.6,
     zoomGain: 2.6, zoomMax: 3.2,
-    hold: 220                         // ms a pinch must last before it becomes a drag instead of a click
+    hold: 200,
+    numHands: 2,          // drops itself to 1 if this machine cannot keep up
+    camW: 480, camH: 360  // a smaller picture is read faster and loses no accuracy: the model shrinks it anyway
   };
   try { Object.assign(T, JSON.parse(localStorage.getItem('phrHandTune') || '{}')); } catch (e) {}
   function save() { try { localStorage.setItem('phrHandTune', JSON.stringify(T)); } catch (e) {} }
 
-  var BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
-               [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-  var TIPS = [8, 12, 16, 20], PIPS = [6, 10, 14, 18];
+  var FINGERS = [[0,1,2,3,4],[0,5,6,7,8],[0,9,10,11,12],[0,13,14,15,16],[0,17,18,19,20]];
+  var PALM = [0,1,5,9,13,17];
+  var TIPS = [8,12,16,20], PIPS = [6,10,14,18];
 
-  var video, cv, g, mark, raf = 0, on = false, starting = false, lastT = 0;
-  var hands = [];                     // one entry per hand seen, carrying its own gesture state
-  var zoomPair = null, pill, txt, dismissAt = 0;
+  var video, cv, g, mark, raf = 0, on = false, starting = false;
+  var hands = [], zoomPair = null, txt, dismissAt = 0, vision = null, fileset = null;
+  var lastDet = 0, gap = 30, slowRun = 0, lastDraw = 0;
   var D = document;
   function $(s) { return D.querySelector(s); }
   function hud() { return window.__hud || {}; }
-  function say(m) { if (txt) txt.textContent = m; }
+  function say(m) { if (txt && txt.textContent !== m) txt.textContent = m; }
 
-  /* ---------- the hand of light ---------- */
   function sizeCanvas() {
-    /* Michael, Nov 14: a full-screen canvas at full pixel ratio is real GPU memory. While hands are off it
-       stays 1x1; while on it is capped at 1.3, so a busy machine (Lightroom denoising, a screen recorder)
-       is not asked for another 25 MB of video memory. */
     if (!on) { cv.width = cv.height = 1; return; }
     var r = Math.min(1.3, window.devicePixelRatio || 1);
     cv.width = Math.round(innerWidth * r); cv.height = Math.round(innerHeight * r);
     g.setTransform(r, 0, 0, r, 0, 0);
   }
+
+  /* ================= the hand of light ================= */
+  function lerp(a, b, t) { return a + (b - a) * t; }
   function drawHand(h) {
-    var p = h.pts, i, a, b;
-    g.lineCap = 'round'; g.lineJoin = 'round';
-    g.strokeStyle = h.pinch ? 'rgba(255,214,140,.92)' : 'rgba(126,186,255,.62)';
-    g.shadowColor = h.pinch ? 'rgba(255,190,80,.9)' : 'rgba(70,150,255,.75)'; g.shadowBlur = 16;
-    g.lineWidth = 2.1; g.beginPath();
-    for (i = 0; i < BONES.length; i++) { a = p[BONES[i][0]]; b = p[BONES[i][1]]; g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); }
-    g.stroke();
-    for (i = 0; i < p.length; i++) {
-      var big = i === 4 || i === 8, rr = big ? 5.2 : 2.9;
-      g.fillStyle = big ? (h.pinch ? '#ffe6b0' : '#cfe6ff') : 'rgba(190,220,255,.8)';
-      g.beginPath(); g.arc(p[i].x, p[i].y, rr, 0, 6.2832); g.fill();
+    var p = h.sm, i, j, f, w, s = h.scale / 80, hot = h.pinch || h.tapping;
+    var core = hot ? 'rgba(255,236,190,' : 'rgba(214,238,255,';
+    var skin = hot ? 'rgba(255,196,96,' : 'rgba(92,164,255,';
+    g.save();
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.shadowColor = hot ? 'rgba(255,180,70,.95)' : 'rgba(60,140,255,.9)';
+
+    /* the palm, as a pane of lit glass */
+    g.beginPath(); g.moveTo(p[PALM[0]].x, p[PALM[0]].y);
+    for (i = 1; i < PALM.length; i++) g.lineTo(p[PALM[i]].x, p[PALM[i]].y);
+    g.closePath();
+    var gr = g.createLinearGradient(p[0].x, p[0].y, p[9].x, p[9].y);
+    gr.addColorStop(0, skin + '.42)'); gr.addColorStop(1, skin + '.18)');
+    g.shadowBlur = 20; g.fillStyle = gr; g.fill();
+    g.shadowBlur = 0; g.strokeStyle = skin + '.5)'; g.lineWidth = 1.2 * s; g.stroke();
+
+    /* the fingers, as tapering limbs of light rather than sticks */
+    for (f = 0; f < FINGERS.length; f++) {
+      var ch = FINGERS[f];
+      for (j = 1; j < ch.length; j++) {
+        var a = p[ch[j - 1]], b = p[ch[j]];
+        w = (f === 0 ? 21 : 19) * s * (1 - (j - 1) * 0.15);        // thinner toward the tip
+        g.shadowBlur = 18; g.strokeStyle = skin + '.42)'; g.lineWidth = Math.max(3, w);
+        g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+        g.shadowBlur = 0; g.strokeStyle = core + '.8)'; g.lineWidth = Math.max(1, w * 0.26);
+        g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      }
+      /* the knuckle and the fingertip read as joints of light */
+      var tip = p[ch[ch.length - 1]];
+      g.shadowBlur = 14; g.fillStyle = core + '.9)';
+      g.beginPath(); g.arc(tip.x, tip.y, Math.max(2.5, 6.4 * s), 0, 6.2832); g.fill();
+      g.shadowBlur = 0; g.fillStyle = skin + '.5)';
+      g.beginPath(); g.arc(p[ch[1]].x, p[ch[1]].y, Math.max(1.5, 3.4 * s), 0, 6.2832); g.fill();
     }
-    g.shadowBlur = 0;
+    /* the wrist, where the hologram fades out */
+    var wg = g.createRadialGradient(p[0].x, p[0].y, 0, p[0].x, p[0].y, 26 * s);
+    wg.addColorStop(0, skin + '.62)'); wg.addColorStop(1, skin + '0)');
+    g.fillStyle = wg; g.beginPath(); g.arc(p[0].x, p[0].y, 34 * s, 0, 6.2832); g.fill();
+    g.restore();
   }
-  function drawCursor(h) {
-    var x = h.cx, y = h.cy, r = h.pinch ? 9 : (h.tapping ? 10 : 15), k;
+
+  function drawCursor(h, now) {
+    var x = h.cx, y = h.cy, r = h.pinch ? 9 : (h.tapping ? 10 : 14);
     if (h.flash) {
-      var a = Math.max(0, Math.min(1, (performance.now() - h.flash) / 420));
+      var a = Math.max(0, Math.min(1, (now - h.flash) / 420));
       if (a >= 1) h.flash = 0;
       else { g.save(); g.globalAlpha = 1 - a; g.strokeStyle = '#ffd98c'; g.lineWidth = 2.4;
         g.beginPath(); g.arc(x, y, Math.max(1, 12 + a * 44), 0, 6.2832); g.stroke(); g.restore(); }
     }
     g.save(); g.globalCompositeOperation = 'lighter';
-    var gr = g.createRadialGradient(x, y, 0, x, y, r * 2.6);
-    gr.addColorStop(0, h.pinch ? 'rgba(255,230,170,.95)' : 'rgba(170,215,255,.85)');
+    var gr = g.createRadialGradient(x, y, 0, x, y, r * 2.8);
+    gr.addColorStop(0, h.pinch ? 'rgba(255,230,170,.95)' : 'rgba(170,215,255,.9)');
     gr.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * 2.6, 0, 6.2832); g.fill();
-    g.restore();
-    g.strokeStyle = h.pinch ? 'rgba(255,207,134,.95)' : 'rgba(190,225,255,.8)'; g.lineWidth = 1.6;
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * 2.8, 0, 6.2832); g.fill(); g.restore();
+    g.strokeStyle = h.pinch ? 'rgba(255,207,134,.95)' : 'rgba(200,230,255,.85)'; g.lineWidth = 1.6;
     g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.stroke();
-    for (k = 0; k < 4; k++) {           // four ticks, so it reads as an instrument and not a mouse pointer
-      var a = k * Math.PI / 2 + (h.pinch ? 0.78 : 0);
-      g.beginPath(); g.moveTo(x + Math.cos(a) * (r + 4), y + Math.sin(a) * (r + 4));
-      g.lineTo(x + Math.cos(a) * (r + 9), y + Math.sin(a) * (r + 9)); g.stroke();
+    for (var k = 0; k < 4; k++) {
+      var an = k * Math.PI / 2 + (h.pinch ? 0.78 : 0);
+      g.beginPath(); g.moveTo(x + Math.cos(an) * (r + 4), y + Math.sin(an) * (r + 4));
+      g.lineTo(x + Math.cos(an) * (r + 9), y + Math.sin(an) * (r + 9)); g.stroke();
     }
   }
-  function drawZoom(a, b) {
-    g.save(); g.setLineDash([3, 7]); g.strokeStyle = 'rgba(255,207,134,.5)'; g.lineWidth = 1.4;
-    g.beginPath(); g.moveTo(a.cx, a.cy); g.lineTo(b.cx, b.cy); g.stroke(); g.restore();
-  }
 
-  /* ---------- turning a pinch into something the page already understands ---------- */
-  function ev(el, type, x, y, extra) {
+  /* ================= turning gestures into things the page already understands ================= */
+  function ev(el, type, x, y) {
     var o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, view: window,
-              pointerId: 991, pointerType: 'pen', isPrimary: true, button: 0, buttons: type === 'pointerup' || type === 'mouseup' || type === 'click' ? 0 : 1 };
-    if (extra) for (var k in extra) o[k] = k in o ? o[k] : extra[k];
+              pointerId: 991, pointerType: 'pen', isPrimary: true, button: 0,
+              buttons: (type === 'pointerup' || type === 'mouseup') ? 0 : 1 };
     try { el.dispatchEvent(new PointerEvent(type, o)); } catch (e) {
       try { el.dispatchEvent(new MouseEvent(type, o)); } catch (x2) {}
     }
   }
   function tap(x, y) {
-    var el = D.elementFromPoint(x, y); if (!el) return;
+    var el = D.elementFromPoint(x, y); if (!el) { say('Nothing there'); return; }
     ev(el, 'pointerdown', x, y); ev(el, 'mousedown', x, y);
     ev(el, 'pointerup', x, y); ev(el, 'mouseup', x, y);
     try { el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window })); } catch (e) {}
-    var f = el.closest ? el.closest('button,a,[data-nav],[data-ap],[data-city]') : null;
-    say(f ? 'Selected' : 'Pinched');
+    var f = el.closest ? el.closest('button,a,[data-nav],[data-ap],[data-city],[data-wtoggle]') : null;
+    say(f ? 'Selected ' + (f.textContent || '').trim().slice(0, 22) : 'Tapped');
   }
-
-  /* ---------- what a pinch lands on ---------- */
   function overOrb(x, y) {
-    var r = hud().slotRect && hud().slotRect(); if (!r) return false;
     if (D.body.classList.contains('world')) return true;
+    var r = hud().slotRect && hud().slotRect(); if (!r) return false;
     return x > r.left && x < r.right && y > r.top && y < r.bottom;
   }
   function panelAt(x, y) {
     var el = D.elementFromPoint(x, y); if (!el || !el.closest) return null;
-    var head = el.closest('.ph,.sb-me,.fp>header');   // only the top bar of a board is a handle
+    var head = el.closest('.ph,.sb-me,.fp>header');
     return head ? head.closest('.panel,.fp,.sb') : null;
   }
-
   function beginDrag(h) {
     var x = h.cx, y = h.cy;
-    if (overOrb(x, y)) {
-      h.mode = 'orb'; h.target = $('#slot') || D.body;
-      ev(h.target, 'pointerdown', x, y); say('Turning the world');
-      return;
-    }
+    if (overOrb(x, y)) { h.mode = 'orb'; h.target = $('#slot') || D.body; ev(h.target, 'pointerdown', x, y); say('Turning the world'); return; }
     var pan = panelAt(x, y);
-    if (pan) { h.mode = 'panel'; h.target = pan; h.px = 0; h.py = 0; h.ox = x; h.oy = y;
-      pan.classList.remove('hand-spring'); pan.classList.add('hand-held'); say('Holding ' + (pan.querySelector('h2') ? pan.querySelector('h2').textContent.trim() : 'a board')); return; }
+    if (pan) { h.mode = 'panel'; h.target = pan; h.ox = x; h.oy = y;
+      pan.classList.remove('hand-spring'); pan.classList.add('hand-held');
+      var t2 = pan.querySelector('h2'); say('Holding ' + (t2 ? t2.textContent.trim() : 'a board')); return; }
     h.mode = 'drag'; h.target = D.elementFromPoint(x, y) || D.body;
     ev(h.target, 'pointerdown', x, y); ev(h.target, 'mousedown', x, y);
   }
   function moveDrag(h) {
-    if (h.mode === 'panel') {
-      h.px = h.cx - h.ox; h.py = h.cy - h.oy;
-      h.target.style.transform = 'translate(' + h.px.toFixed(1) + 'px,' + h.py.toFixed(1) + 'px)';
-    } else if (h.target) { ev(h.target, 'pointermove', h.cx, h.cy); ev(h.target, 'mousemove', h.cx, h.cy); }
+    if (h.mode === 'panel') h.target.style.transform = 'translate(' + (h.cx - h.ox).toFixed(1) + 'px,' + (h.cy - h.oy).toFixed(1) + 'px)';
+    else if (h.target) { ev(h.target, 'pointermove', h.cx, h.cy); ev(h.target, 'mousemove', h.cx, h.cy); }
   }
   function endDrag(h) {
     if (h.mode === 'panel' && h.target) {
@@ -143,8 +162,6 @@
     } else if (h.target) { ev(h.target, 'pointerup', h.cx, h.cy); ev(h.target, 'mouseup', h.cx, h.cy); }
     h.mode = null; h.target = null;
   }
-
-  /* ---------- open palm: dismiss ---------- */
   function openPalm(p, size) {
     var n = 0;
     for (var i = 0; i < 4; i++) {
@@ -163,142 +180,162 @@
     say('Nothing to dismiss');
   }
 
-  /* ---------- every frame ---------- */
-  function onFrame(res, now) {
-    g.clearRect(0, 0, innerWidth, innerHeight);
+  /* ================= a reading from the camera ================= */
+  function measure(res, now) {
     var list = (res && res.landmarks) || [], i, W = innerWidth, H = innerHeight;
     while (hands.length > list.length) { var gone = hands.pop(); if (gone.mode) endDrag(gone); }
     for (i = 0; i < list.length; i++) {
-      var lmk = list[i], h = hands[i] || (hands[i] = { cx: W / 2, cy: H / 2, hx: W / 2, hy: H / 2, mode: null, pinch: false, down: 0, lastx: 0, lastt: 0, tapLock: false });
+      var lmk = list[i], h = hands[i];
+      if (!h) h = hands[i] = { cx: W / 2, cy: H / 2, tgx: W / 2, tgy: H / 2, hx: W / 2, hy: H / 2,
+        vx: 0, vy: 0, mode: null, pinch: false, tapping: false, tapLock: false, down: 0, flash: 0,
+        lastx: 0, lastt: now, at: now, pts: null, sm: null, scale: 80 };
       var b = T.box, sc = 1 / Math.max(0.05, 1 - 2 * b);
-      h.pts = lmk.map(function (q) {
-        return { x: Math.max(-40, Math.min(W + 40, ((1 - q.x) - b) * sc * W)), y: Math.max(-40, Math.min(H + 40, (q.y - b) * sc * H)) };
-      });
-      var size = Math.max(14, Math.hypot(h.pts[0].x - h.pts[9].x, h.pts[0].y - h.pts[9].y));
-      /* the cursor is the index fingertip, pushed out from the middle of the view so small moves carry */
-      var tx = (h.pts[8].x - W / 2) * T.gain + W / 2, ty = (h.pts[8].y - H / 2) * T.gain + H / 2;
-      var k = 1 - Math.pow(T.smooth, Math.max(0.3, (now - lastT) / 16.7));
-      h.cx += (Math.max(2, Math.min(W - 2, tx)) - h.cx) * k;
-      h.cy += (Math.max(2, Math.min(H - 2, ty)) - h.cy) * k;
+      var pts = new Array(21);
+      for (var q = 0; q < lmk.length; q++) {
+        pts[q] = { x: Math.max(-60, Math.min(W + 60, ((1 - lmk[q].x) - b) * sc * W)),
+                   y: Math.max(-60, Math.min(H + 60, (lmk[q].y - b) * sc * H)) };
+      }
+      h.pts = pts;
+      if (!h.sm) h.sm = pts.map(function (o) { return { x: o.x, y: o.y }; });
+      h.scale = Math.max(14, Math.hypot(pts[0].x - pts[9].x, pts[0].y - pts[9].y));
 
-      /* Michael, Nov 14: point and tap. The index bending counts as a click; while it bends the cursor is
-         held still and the click lands where he was pointing, not where his fingertip dipped to. */
-      var ext = Math.hypot(h.pts[8].x - h.pts[5].x, h.pts[8].y - h.pts[5].y) / size;
-      h.extMax = Math.max(ext, (h.extMax || ext) * 0.985);
+      /* where he is pointing, pushed out from the middle so a small movement carries */
+      var tx = Math.max(2, Math.min(W - 2, (pts[8].x - W / 2) * T.gain + W / 2));
+      var ty = Math.max(2, Math.min(H - 2, (pts[8].y - H / 2) * T.gain + H / 2));
+      var dt = Math.max(0.008, (now - h.at) / 1000); h.at = now;
+      h.vx = (tx - (h.rawx == null ? tx : h.rawx)) / dt; h.vy = (ty - (h.rawy == null ? ty : h.rawy)) / dt;
+      h.rawx = tx; h.rawy = ty;
+
+      /* a tap: the index bends like a mouse button. The straight length is remembered and bleeds away
+         slowly in real seconds, so the frame rate cannot change how a tap feels. */
+      var ext = Math.hypot(pts[8].x - pts[5].x, pts[8].y - pts[5].y) / h.scale;
+      h.extMax = Math.max(ext, (h.extMax == null ? ext : h.extMax) - 0.10 * dt);
       var curl = ext / Math.max(0.2, h.extMax);
       if (T.tap && !h.pinch) {
-        if (!h.tapping && curl < T.tapDown) { h.tapping = true; h.tapAt = now; h.tx0 = h.hx; h.ty0 = h.hy; }
+        if (curl > T.tapUp) h.tapLock = false;
+        if (!h.tapping && !h.tapLock && curl < T.tapDown) { h.tapping = true; h.tapAt = now; h.tx0 = h.hx; h.ty0 = h.hy; }
         else if (h.tapping && curl > T.tapUp) {
           h.tapping = false;
-          if (now - h.tapAt < T.tapMs) { h.flash = now; tap(h.tx0, h.ty0); }
-        } else if (h.tapping && now - h.tapAt > T.tapMs) { h.tapping = false; }
-      } else h.tapping = false;
-      if (!h.tapping) { h.hx = h.cx; h.hy = h.cy; }      // the last place he was really pointing
-      else { h.cx = h.tx0; h.cy = h.ty0; }               // hold the cursor still through the tap
+          if (now - h.tapAt < T.tapMs) { h.flash = performance.now(); tap(h.tx0, h.ty0); }
+        } else if (h.tapping && now - h.tapAt > T.tapMs) { h.tapping = false; h.tapLock = true; }
+      } else { h.tapping = false; h.tapLock = false; }
 
-      var d = Math.hypot(h.pts[4].x - h.pts[8].x, h.pts[4].y - h.pts[8].y) / size;
-      var was = h.pinch;
+      if (!h.tapping) { h.tgx = tx + h.vx * T.lead; h.tgy = ty + h.vy * T.lead; h.hx = h.cx; h.hy = h.cy; }
+      else { h.tgx = h.tx0; h.tgy = h.ty0; }
+      if (!isFinite(h.tgx) || !isFinite(h.tgy)) { h.tgx = W / 2; h.tgy = H / 2; }
+
+      var d = Math.hypot(pts[4].x - pts[8].x, pts[4].y - pts[8].y) / h.scale, was = h.pinch;
       if (!h.pinch && d < T.pinchOn) h.pinch = true; else if (h.pinch && d > T.pinchOff) h.pinch = false;
       if (h.pinch && !was) { h.down = now; h.mode = null; h.sx = h.cx; h.sy = h.cy; }
       if (h.pinch && !h.mode && (now - h.down > T.hold || Math.hypot(h.cx - h.sx, h.cy - h.sy) > 26)) beginDrag(h);
-      if (h.pinch && h.mode) moveDrag(h);
-      if (!h.pinch && was) { if (h.mode) endDrag(h); else if (now - h.down < 650) tap(h.cx, h.cy); }
+      if (!h.pinch && was && h.mode) endDrag(h);
 
-      /* an open palm thrown sideways dismisses whatever is in front of him */
-      if (!h.pinch && openPalm(h.pts, size)) {
-        var dt = Math.max(1, now - (h.lastt || now)), v = Math.abs(h.cx - (h.lastx || h.cx)) / dt * 1000 / W;
+      if (!h.pinch && !h.tapping && openPalm(pts, h.scale)) {
+        var dts = Math.max(1, now - h.lastt), v = Math.abs(h.cx - h.lastx) / dts * 1000 / W;
         if (v > T.swipe) dismiss();
       }
       h.lastx = h.cx; h.lastt = now;
-      drawHand(h); drawCursor(h);
     }
-
-    /* two hands pinched: pull apart to open the orb, push together to close it */
-    var a = hands[0], b2 = hands[1];
-    if (a && b2 && a.pinch && b2.pinch) {
-      var span = Math.hypot(a.cx - b2.cx, a.cy - b2.cy) / Math.hypot(W, H);
-      if (!zoomPair) { zoomPair = { span: span, base: (hud().orbZoomNow && hud().orbZoomNow()) || 1 };
-        if (a.mode) endDrag(a); if (b2.mode) endDrag(b2); }
-      var z = Math.max(1, Math.min(T.zoomMax, zoomPair.base + (span - zoomPair.span) * T.zoomGain * 4));
-      if (hud().orbZoom) hud().orbZoom(z);
-      drawZoom(a, b2); say(z > 1.06 ? 'Into the orb · ' + z.toFixed(1) + '×' : 'Hold and pull apart');
-    } else if (zoomPair) { zoomPair = null; }
-
-    if (!list.length) say('Show me a hand');
-    else if (!hands.some(function (q) { return q.pinch || q.tapping; })) say(T.tap ? 'Point and tap, or pinch to hold' : 'Pinch to choose');
-    lastT = now;
   }
 
-  /* ---------- camera ---------- */
-  var slowRun = 0, lastDet = 0, gap = 33;
+  /* ================= drawn every screen frame, whatever the camera managed ================= */
+  function paint(now) {
+    var dt = Math.min(0.05, (now - lastDraw) / 1000); lastDraw = now;
+    g.clearRect(0, 0, innerWidth, innerHeight);
+    var k = 1 - Math.exp(-dt * T.follow), ks = 1 - Math.exp(-dt * 26), i, j;
+    for (i = 0; i < hands.length; i++) {
+      var h = hands[i]; if (!h.pts) continue;
+      h.cx += (h.tgx - h.cx) * k; h.cy += (h.tgy - h.cy) * k;
+      for (j = 0; j < h.pts.length; j++) {                    // the hand itself glides to the new reading
+        h.sm[j].x += (h.pts[j].x - h.sm[j].x) * ks;
+        h.sm[j].y += (h.pts[j].y - h.sm[j].y) * ks;
+      }
+      if (h.mode) moveDrag(h);
+      drawHand(h); drawCursor(h, now);
+    }
+    var a = hands[0], b = hands[1];
+    if (a && b && a.pinch && b.pinch) {
+      var span = Math.hypot(a.cx - b.cx, a.cy - b.cy) / Math.hypot(innerWidth, innerHeight);
+      if (!zoomPair) { zoomPair = { span: span, base: (hud().orbZoomNow && hud().orbZoomNow()) || 1 };
+        if (a.mode) endDrag(a); if (b.mode) endDrag(b); }
+      var z = Math.max(1, Math.min(T.zoomMax, zoomPair.base + (span - zoomPair.span) * T.zoomGain * 4));
+      if (hud().orbZoom) hud().orbZoom(z);
+      g.save(); g.setLineDash([3, 7]); g.strokeStyle = 'rgba(255,207,134,.5)'; g.lineWidth = 1.4;
+      g.beginPath(); g.moveTo(a.cx, a.cy); g.lineTo(b.cx, b.cy); g.stroke(); g.restore();
+      say(z > 1.06 ? 'Into the orb · ' + z.toFixed(1) + '×' : 'Hold and pull apart');
+    } else if (zoomPair) zoomPair = null;
+    if (!hands.length) say('Show me a hand');
+    else if (!hands.some(function (q) { return q.pinch || q.tapping || q.mode; })) say('Point and tap');
+  }
+
   function loop() {
     raf = requestAnimationFrame(loop);
-    if (!on || !mark || video.readyState < 2) return;
+    if (!on) return;
     var now = performance.now();
-    if (now - lastDet < gap) return;           // read as often as this machine can manage, no more
-    lastDet = now;
-    var t0 = performance.now(), res = null;
-    try { res = mark.detectForVideo(video, now); } catch (e) { return; }
-    var cost = performance.now() - t0;
-    /* if reading a frame starts taking a third of a second, this machine is busy with something heavier.
-       Stand down rather than drag the whole page under with it. */
-    if (cost > 320) { slowRun++; if (slowRun >= 6) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
-    else slowRun = Math.max(0, slowRun - 1);
-    gap = cost > 55 ? 66 : cost > 28 ? 42 : 33;   // a slower machine reads fewer frames instead of lagging behind
-    onFrame(res, now);
+    if (mark && video.readyState >= 2 && now - lastDet >= gap) {
+      lastDet = now;
+      var t0 = performance.now(), res = null;
+      try { res = mark.detectForVideo(video, now); } catch (e) { res = null; }
+      var cost = performance.now() - t0;
+      if (res) measure(res, now);
+      gap = cost > 55 ? 60 : cost > 28 ? 40 : 30;
+      if (cost > 45 && T.numHands > 1) {                       // too slow for two: carry on with one
+        slowRun++;
+        if (slowRun > 25) { slowRun = 0; T.numHands = 1; save(); rebuild(); say('One hand — your machine was struggling'); }
+      } else if (cost > 320) { slowRun += 8; if (slowRun > 40) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
+      else slowRun = Math.max(0, slowRun - 1);
+    }
+    paint(now);
+  }
+
+  function makeMarker() {
+    var opt = function (dl) { return { baseOptions: { modelAssetPath: MODEL, delegate: dl }, runningMode: 'VIDEO',
+      numHands: T.numHands, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.45, minTrackingConfidence: 0.45 }; };
+    return vision.HandLandmarker.createFromOptions(fileset, opt('GPU'))
+      .catch(function () { return vision.HandLandmarker.createFromOptions(fileset, opt('CPU')); });
+  }
+  function rebuild() {
+    var old = mark; mark = null;
+    makeMarker().then(function (m) { mark = m; try { old && old.close && old.close(); } catch (e) {} },
+                      function () { mark = old; });
   }
 
   function start() {
     if (on || starting) return Promise.resolve(on);
-    starting = true; say('Waking the camera');
-    D.body.classList.add('hands-on');
-    return navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false })
-      .then(function (stream) {
-        video.srcObject = stream; return video.play();
-      })
-      .then(function () {
-        say('Loading the hands');
-        return import(MP + 'vision_bundle.mjs');
-      })
-      .then(function (v) {
-        return v.FilesetResolver.forVisionTasks(MP + 'wasm').then(function (fs) {
-          var opt = function (d) { return { baseOptions: { modelAssetPath: MODEL, delegate: d },
-            runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.55,
-            minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 }; };
-          return v.HandLandmarker.createFromOptions(fs, opt('GPU'))
-                  .catch(function () { return v.HandLandmarker.createFromOptions(fs, opt('CPU')); });
-        });
-      })
+    starting = true; say('Waking the camera'); D.body.classList.add('hands-on');
+    return navigator.mediaDevices.getUserMedia({ video: { width: T.camW, height: T.camH, frameRate: 30, facingMode: 'user' }, audio: false })
+      .then(function (st) { video.srcObject = st; return video.play(); })
+      .then(function () { say('Loading the hands'); return vision ? vision : import(MP + 'vision_bundle.mjs'); })
+      .then(function (v) { vision = v; return fileset ? fileset : v.FilesetResolver.forVisionTasks(MP + 'wasm'); })
+      .then(function (fs) { fileset = fs; return makeMarker(); })
       .then(function (m) {
-        mark = m; on = true; starting = false; slowRun = 0; sizeCanvas();
-        if (!raf) loop();
-        say(T.tap ? 'Point and tap, or pinch to hold' : 'Pinch to choose');
-        return true;
+        mark = m; on = true; starting = false; slowRun = 0; lastDraw = performance.now();
+        sizeCanvas(); if (!raf) loop(); say('Point and tap'); return true;
       })
       .catch(function (e) {
-        starting = false; stop();
-        say('No camera');
+        starting = false; stop(); say('No camera');
         try { window.__hud && window.__hud.toast && window.__hud.toast('The camera did not open, sir: ' + (e && e.name || e), 1); } catch (x) {}
         return false;
       });
   }
   function stop() {
-    on = false; hands.forEach(function (h) { if (h.mode) endDrag(h); }); hands.length = 0; zoomPair = null;
+    on = false;
+    hands.forEach(function (h) { if (h.mode) endDrag(h); }); hands.length = 0; zoomPair = null;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     try { if (video.srcObject) video.srcObject.getTracks().forEach(function (t2) { t2.stop(); }); } catch (e) {}
     video.srcObject = null;
-    if (hud().orbZoom) hud().orbZoom(1);
-    if (g) { g.clearRect(0, 0, innerWidth, innerHeight); }
-    D.body.classList.remove('hands-on');
     try { if (mark && mark.close) mark.close(); } catch (e) {}
-    mark = null; sizeCanvas();
+    mark = null;
+    if (hud().orbZoom) hud().orbZoom(1);
+    if (g) g.clearRect(0, 0, innerWidth, innerHeight);
+    D.body.classList.remove('hands-on');
+    sizeCanvas();
   }
-
   function boot() {
-    video = $('#handcam'); cv = $('#handfx'); pill = $('#handpill'); txt = $('#handtxt');
+    video = $('#handcam'); cv = $('#handfx'); txt = $('#handtxt');
     if (!video || !cv) return;
     g = cv.getContext('2d'); cv.width = cv.height = 1;
-    addEventListener('resize', sizeCanvas);
+    addEventListener('resize', function () { sizeCanvas(); });
   }
   if (D.readyState === 'loading') addEventListener('DOMContentLoaded', boot); else boot();
 
@@ -306,9 +343,8 @@
     start: start, stop: stop,
     toggle: function () { return on ? (stop(), Promise.resolve(false)) : start(); },
     isOn: function () { return on; },
-    tune: function (o) { if (o) { Object.assign(T, o); save(); } return Object.assign({}, T); },
-    /* for testing without a camera: feed landmark frames straight in */
-    _feed: function (frame, now) { onFrame(frame, now == null ? performance.now() : now); },
-    _state: function () { return hands.map(function (h) { return { cx: Math.round(h.cx), cy: Math.round(h.cy), pinch: h.pinch, mode: h.mode }; }); }
+    tune: function (o) { if (o) { Object.assign(T, o); save(); if (on && o.numHands) rebuild(); } return Object.assign({}, T); },
+    _feed: function (frame, now) { var t = now == null ? performance.now() : now; measure(frame, t); paint(t); },
+    _state: function () { return hands.map(function (h) { return { cx: Math.round(h.cx), cy: Math.round(h.cy), pinch: h.pinch, tapping: h.tapping, mode: h.mode }; }); }
   };
 })();
