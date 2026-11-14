@@ -23,11 +23,12 @@
     swipe: 1.6,
     zoomGain: 2.6, zoomMax: 3.2,
     hold: 200,
-    numHands: 2,          // drops itself to 1 if this machine cannot keep up
+    numHands: 2,          // may drop to 1 for THIS session if the machine cannot keep up; never saved that way
+    showHand: false,      // Michael, Nov 14: no skeleton. Just the points.
     camW: 480, camH: 360  // a smaller picture is read faster and loses no accuracy: the model shrinks it anyway
   };
-  try { Object.assign(T, JSON.parse(localStorage.getItem('phrHandTune') || '{}')); } catch (e) {}
-  function save() { try { localStorage.setItem('phrHandTune', JSON.stringify(T)); } catch (e) {} }
+  try { var sv = JSON.parse(localStorage.getItem('phrHandTune') || '{}'); delete sv.numHands; Object.assign(T, sv); } catch (e) {}
+  function save() { try { var o = Object.assign({}, T); delete o.numHands; localStorage.setItem('phrHandTune', JSON.stringify(o)); } catch (e) {} }
 
   var FINGERS = [[0,1,2,3,4],[0,5,6,7,8],[0,9,10,11,12],[0,13,14,15,16],[0,17,18,19,20]];
   var PALM = [0,1,5,9,13,17];
@@ -141,25 +142,19 @@
     var head = el.closest('.ph,.sb-me,.fp>header');
     return head ? head.closest('.panel,.fp,.sb') : null;
   }
+  /* Michael, Nov 14: a pinch on the orb or the world turns it. A pinch on anything else simply opens it,
+     the same as a tap — no dragging boards about. */
   function beginDrag(h) {
     var x = h.cx, y = h.cy;
     if (overOrb(x, y)) { h.mode = 'orb'; h.target = $('#slot') || D.body; ev(h.target, 'pointerdown', x, y); say('Turning the world'); return; }
-    var pan = panelAt(x, y);
-    if (pan) { h.mode = 'panel'; h.target = pan; h.ox = x; h.oy = y;
-      pan.classList.remove('hand-spring'); pan.classList.add('hand-held');
-      var t2 = pan.querySelector('h2'); say('Holding ' + (t2 ? t2.textContent.trim() : 'a board')); return; }
-    h.mode = 'drag'; h.target = D.elementFromPoint(x, y) || D.body;
-    ev(h.target, 'pointerdown', x, y); ev(h.target, 'mousedown', x, y);
+    h.mode = 'done'; h.target = null; h.flash = performance.now(); tap(x, y);
   }
   function moveDrag(h) {
-    if (h.mode === 'panel') h.target.style.transform = 'translate(' + (h.cx - h.ox).toFixed(1) + 'px,' + (h.cy - h.oy).toFixed(1) + 'px)';
-    else if (h.target) { ev(h.target, 'pointermove', h.cx, h.cy); ev(h.target, 'mousemove', h.cx, h.cy); }
+    if (h.mode === 'done' || !h.target) return;
+    ev(h.target, 'pointermove', h.cx, h.cy); ev(h.target, 'mousemove', h.cx, h.cy);
   }
   function endDrag(h) {
-    if (h.mode === 'panel' && h.target) {
-      var p = h.target; p.classList.remove('hand-held'); p.classList.add('hand-spring'); p.style.transform = '';
-      setTimeout(function () { p.classList.remove('hand-spring'); }, 600); say('Let go');
-    } else if (h.target) { ev(h.target, 'pointerup', h.cx, h.cy); ev(h.target, 'mouseup', h.cx, h.cy); }
+    if (h.target) { ev(h.target, 'pointerup', h.cx, h.cy); ev(h.target, 'mouseup', h.cx, h.cy); }
     h.mode = null; h.target = null;
   }
   function openPalm(p, size) {
@@ -251,7 +246,8 @@
         h.sm[j].y += (h.pts[j].y - h.sm[j].y) * ks;
       }
       if (h.mode) moveDrag(h);
-      drawHand(h); drawCursor(h, now);
+      if (T.showHand) drawHand(h);
+      drawCursor(h, now);
     }
     var a = hands[0], b = hands[1];
     if (a && b && a.pinch && b.pinch) {
@@ -281,7 +277,7 @@
       gap = cost > 55 ? 60 : cost > 28 ? 40 : 30;
       if (cost > 45 && T.numHands > 1) {                       // too slow for two: carry on with one
         slowRun++;
-        if (slowRun > 25) { slowRun = 0; T.numHands = 1; save(); rebuild(); say('One hand — your machine was struggling'); }
+        if (slowRun > 25) { slowRun = 0; T.numHands = 1; rebuild(); say('One hand — your machine was struggling'); }
       } else if (cost > 320) { slowRun += 8; if (slowRun > 40) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
       else slowRun = Math.max(0, slowRun - 1);
     }
@@ -302,7 +298,9 @@
 
   function start() {
     if (on || starting) return Promise.resolve(on);
-    starting = true; say('Waking the camera'); D.body.classList.add('hands-on');
+    T.numHands = 2;        // every session starts hoping for both hands
+    starting = true; say(warmed ? 'Waking the camera' : 'Loading — a few seconds the first time'); D.body.classList.add('hands-on');
+    try { localStorage.setItem('phrHandUsed', '1'); } catch (e) {}
     return navigator.mediaDevices.getUserMedia({ video: { width: T.camW, height: T.camH, frameRate: 30, facingMode: 'user' }, audio: false })
       .then(function (st) { video.srcObject = st; return video.play(); })
       .then(function () { say('Loading the hands'); return vision ? vision : import(MP + 'vision_bundle.mjs'); })
@@ -331,11 +329,24 @@
     D.body.classList.remove('hands-on');
     sizeCanvas();
   }
+  /* Michael, Nov 14: the pause when he switches hands on is the 8 MB model and the vision runtime loading.
+     Once he has used hands on this machine, every later page load quietly pulls them into the browser's
+     cache while nothing else is happening, so switching on is near instant after that. */
+  var warmed = false;
+  function warm() {
+    try { if (localStorage.getItem('phrHandUsed') !== '1') return; } catch (e) { return; }
+    var go = function () {
+      fetch(MODEL, { cache: 'force-cache' }).then(function () { warmed = true; }).catch(function () {});
+      fetch(MP + 'vision_bundle.mjs', { cache: 'force-cache' }).catch(function () {});
+    };
+    if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 12000 }); else setTimeout(go, 9000);
+  }
   function boot() {
     video = $('#handcam'); cv = $('#handfx'); txt = $('#handtxt');
     if (!video || !cv) return;
     g = cv.getContext('2d'); cv.width = cv.height = 1;
     addEventListener('resize', function () { sizeCanvas(); });
+    setTimeout(warm, 7000);
   }
   if (D.readyState === 'loading') addEventListener('DOMContentLoaded', boot); else boot();
 
