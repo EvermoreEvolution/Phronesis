@@ -293,6 +293,23 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
 .badge{font-family:var(--f-display);font-size:10.5px;letter-spacing:.16em;color:var(--gold-hi);border:1px solid var(--line);padding:4px 9px;white-space:nowrap}
 
 .acts{grid-area:acts;min-height:0;align-self:start;max-height:100%}
+/* Michael, Nov 14: pulling the orb open pushes everything else aside, and lets it back when he lets go */
+body.orb-zoom .railwrap{transform:translateX(-118%);opacity:0}
+body.orb-zoom .acts{transform:translateX(-135%);opacity:0}
+body.orb-zoom .side{transform:translateX(135%);opacity:0}
+body.orb-zoom #asks{transform:translateY(135%);opacity:0}
+body.orb-zoom .head{opacity:.22}
+.railwrap,.acts,.side,#asks,.head{transition:transform .5s cubic-bezier(.4,0,.2,1),opacity .45s ease}
+.panel.hand-held{transition:none!important;z-index:30;cursor:grabbing}
+.panel.hand-spring{transition:transform .55s cubic-bezier(.34,1.56,.64,1)!important}
+#handfx{position:fixed;inset:0;z-index:40;pointer-events:none}
+#handcam{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-9px;top:-9px}
+#handpill{position:fixed;z-index:41;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));
+  display:none;align-items:center;gap:9px;padding:6px 14px;border:1px solid rgba(214,163,73,.5);border-radius:999px;
+  background:rgba(4,10,24,.84);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font:500 11px/1 var(--f-mono);
+  letter-spacing:.12em;text-transform:uppercase;color:#ffe2a6;white-space:nowrap}
+body.hands-on #handpill{display:flex}
+#handBtn[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-hi);background:rgba(44,88,176,.3)}
 .acts .pb{flex:0 1 auto;min-height:0;gap:9px}
 .trail{display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);min-width:0;height:13px;overflow:hidden}
 .trail b{color:var(--gold-hi);font-weight:400}
@@ -1052,6 +1069,7 @@ body.v-open .voice{display:none}
       <p id="line" aria-live="polite">Ready for your instruction, sir.</p>
       <input id="vIn" aria-label="Speak to Phronesis" placeholder="Speak to Phronesis…">
       <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <button type="button" class="mic" id="handBtn" aria-pressed="false" aria-label="Hand control" title="Hand control: point to move, pinch to select"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12V4a1.5 1.5 0 0 1 3 0v8V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a5 5 0 0 1-4.3-2.4L4 15a1.6 1.6 0 0 1 2.6-1.8Z"/></svg></button>
       <button type="button" class="mic" id="micBtn" aria-label="Talk to Phronesis"><svg class="i"><use href="#i-mic"/></svg></button>
       <button type="button" id="statePill" aria-label="Phronesis state">Waiting</button>
     </form>
@@ -1073,11 +1091,13 @@ body.v-open .voice{display:none}
 </div>
 
 <iframe id="worldFrame" title="The world" allow="autoplay"></iframe>
+<canvas id="handfx" aria-hidden="true"></canvas><video id="handcam" playsinline muted aria-hidden="true"></video><div id="handpill"><span id="handtxt">Hands ready</span></div>
 <button class="btn gold" id="wfClose">Back to Command</button>
 <div id="clouds" aria-hidden="true"></div>
 <div id="toast"></div>
 <script src="../land.js"></script>
 <script src="agents-av.js"></script>
+<script src="hands.js"></script>
 <script>
 (()=>{'use strict';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -1109,6 +1129,8 @@ let T=0,form='orb',orbT=0,mode='command',level='globe',CITY=null,cityObj=null,wo
 const SP={muted:{spd:.22,rad:.94,lis:0,spk:0,rv:0},waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
 let state='waiting';const o={spd:.32,rad:1,lis:0,spk:0,rv:0};let lvl=0,phi1=0,phi2=0,outerSpin=0;
 const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0};
+/* hand control: how far into the orb he has pulled it open */
+let HANDZ=1;
 const DBG={};let REST=false,busyAt=performance.now(),restYaw=0,restPitch=.3,restHold=0,WFULL=false;const REST_AFTER=7;
 const SATS=[{r:1.34,ix:1.12,iz:.35,sp:.42,ph:0,g:1},{r:1.52,ix:1.30,iz:-.55,sp:-.3,ph:2.1,g:0},{r:1.72,ix:.95,iz:1.05,sp:.22,ph:4.0,g:1}];
 const cam={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0,D:3.4},camT={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0};
@@ -1629,6 +1651,7 @@ function command(q){q=(q||'').trim();if(!q)return;const s=q.toLowerCase(),c=find
  if(/deeper|street|closer/.test(s))return deeper();
  if(/pull back|zoom out|higher/.test(s))return pullBack();
  if(/that'?ll be all|^command$|^home$|return|go back/.test(s))return toCommand();
+ if(/^(hands?|hand control)( on| off)?$/.test(s)||/turn (on|off) (the )?hands?/.test(s))return handsToggle();
  if(/globe|earth/.test(s))return openWorld();
  if(/world|headquarters|\bhq\b|team room|chat room|where the agents/.test(s))return openAgentWorld();
  if(/daily brief|brief me|the brief/.test(s))return act(async id=>{setState('thinking');await sleep(600,id);openFocus('overview');
@@ -1737,7 +1760,7 @@ function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last
  if(tp.rv>0){phi1+=dt*o.rv;phi2-=dt*o.rv;}else{const kk=1-Math.exp(-dt*2.4);phi1+=(Math.round(phi1/PI)*PI-phi1)*kk;phi2+=(Math.round(phi2/PI)*PI-phi2)*kk;}
  outerSpin+=dt*(.12+o.spd*.07);
  if(mode==='command'){const r=slot.getBoundingClientRect();camT.cx=r.left+r.width/2;camT.cy=r.top+r.height/2+10;
-  ringR=Math.max(60,Math.min(r.width,r.height)*.415);camT.R=ringR*(REST?.72:.6);camT.zoom=1;camT.pitch=REST?restPitch:0;camT.yaw=REST?yawBase+restYaw:yawBase+(form==='orb'?0:.24*Math.sin(T*.8));}
+  ringR=Math.max(60,Math.min(r.width,r.height)*.415)*HANDZ;camT.R=ringR*(REST?.72:.6);camT.zoom=1;camT.pitch=REST?restPitch:0;camT.yaw=REST?yawBase+restYaw:yawBase+(form==='orb'?0:.24*Math.sin(T*.8));}
  else{camT.cx=W/2;camT.cy=H*(body.classList.contains('lead-in')?.44:.48);camT.R=worldR||Math.min(W,H)*.36;
   if(!drag){if(level==='globe')camT.yaw+=dt*.06;else if(level==='map'||level==='deep')camT.yaw+=dt*.035;}}
  const kc=RM?1:1-Math.exp(-dt*2.3);for(const k in camT)cam[k]+=(camT[k]-cam[k])*kc;
@@ -1899,6 +1922,12 @@ function openAgentWorld(){closeFocus(1);if(mode==='world')toCommand(true);WFULL=
 function closeAgentWorld(){if(!WFULL)return;WFULL=false;body.classList.remove('wfull');busyAt=performance.now();
  $$('.sbn button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.nav==='command')));}
 $('#wfClose').addEventListener('click',closeAgentWorld);
+/* Michael, Nov 14: hands. The camera only opens when he asks for it, and the picture never leaves the PC. */
+function handsToggle(){const H=window.PHR_HANDS;if(!H){toast('Hand control did not load, sir.');return;}
+ Promise.resolve(H.toggle()).then(v=>{$('#handBtn').setAttribute('aria-pressed',String(!!v));
+  if(v)showLine('Hands on, sir. Point to move, pinch to choose.');else showLine('Hands off, sir.');});}
+$('#handBtn').addEventListener('click',handsToggle);
+window.__hands=()=>handsToggle();
 addEventListener('keydown',e=>{if(e.key==='Escape'&&WFULL)closeAgentWorld();});
 addEventListener('message',e=>{const d=e.data,f=$('#worldFrame');if(!d||!f||e.source!==f.contentWindow)return;
  if(d.phr==='world-ready'){wfReady=true;[400,2500,6000,12000].forEach(ms=>setTimeout(()=>postWorld(true),ms));}
@@ -1907,7 +1936,7 @@ addEventListener('message',e=>{const d=e.data,f=$('#worldFrame');if(!d||!f||e.so
   if(!txt)return ack(false,'Empty message.');
   window.EH_QUEUE_TASK(txt,to,'livehub').then(r=>{const m=String(r||'');ack(true,/^SAVED, NOT STARTED/.test(m)?'Saved for '+known[to]+'. The pickup collects it within the hour.':/^NOT STARTED/.test(m)?'Saved, but the team is not running, so nothing starts yet.':'Saved for '+known[to]+', but I could not confirm the team is running.');setTimeout(()=>postWorld(true),1500);},
    err=>ack(false,'Not sent: '+(err&&err.message||err)));}});
-window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land:mb?mb.length:0,vis:(()=>{let c=0;for(let i=0;i<NACT;i++)if(P.a[i]>.4)c++;return c;})(),cam:Object.assign({},cam),S}),step:(n,ms)=>{let t=last;for(let i=0;i<n;i++){t+=(ms||40);frame(t,true);}last=performance.now();},flags:DBG,rest:()=>REST,command,go,openFocus,openWorld,openAgentWorld,closeAgentWorld,worldPayload,goCity:n=>goCity(CITIES.find(c=>c.name===n)),HUBX,D,refresh:rebuildAll};
+window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land:mb?mb.length:0,vis:(()=>{let c=0;for(let i=0;i<NACT;i++)if(P.a[i]>.4)c++;return c;})(),cam:Object.assign({},cam),S}),step:(n,ms)=>{let t=last;for(let i=0;i<n;i++){t+=(ms||40);frame(t,true);}last=performance.now();},flags:DBG,rest:()=>REST,closeFocus,setForm,orbZoom:z=>{HANDZ=Math.max(1,Math.min(3.4,z||1));document.body.classList.toggle('orb-zoom',HANDZ>1.06);},orbZoomNow:()=>HANDZ,slotRect:()=>slot.getBoundingClientRect(),command,go,openFocus,openWorld,openAgentWorld,closeAgentWorld,worldPayload,goCity:n=>goCity(CITIES.find(c=>c.name===n)),HUBX,D,refresh:rebuildAll};
 })();
 
 </script>
@@ -1916,7 +1945,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794640676';
+  var EH_VER = '1794643003';
   (function () {
     var born = Date.now();
     function check() {
