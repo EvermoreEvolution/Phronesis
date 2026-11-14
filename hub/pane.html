@@ -606,8 +606,15 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 .wb { grid-row: 1 / span 2; font: 500 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); white-space: nowrap; }
 .wb.st-found { color: var(--blue); border-color: rgba(90,180,255,.4); } .wb.st-verified, .wb.st-done, .wb.st-booked, .wb.st-approved { color: var(--ok, #7BE3A0); border-color: rgba(123,227,160,.4); }
 .wb.st-drafted, .wb.st-replied, .wb.st-need { color: var(--need, #FFC857); border-color: rgba(255,200,87,.4); } .wb.st-lost, .wb.st-problem { color: var(--bad, #ff8a8a); border-color: rgba(255,138,138,.4); } .wb.st-on { color: var(--blue); border-color: rgba(90,180,255,.4); }
-.wd { display: grid; gap: 6px; padding: 4px 14px 12px; border-top: 1px solid var(--line); }
-.wf { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; font-size: 12.5px; line-height: 1.45; } .wf span { color: var(--mute); font: 500 10.5px/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; } .wf em { font-style: normal; color: #d7deef; white-space: pre-wrap; word-break: break-word; }
+.wd { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 7px; padding: 10px 14px 13px; border-top: 1px solid var(--line); }
+/* Michael, Nov 13: every detail in its own little bubble, not a scattered list. */
+.wf { display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%; min-width: 0; padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015)); font-size: 12.5px; line-height: 1.45; }
+.wf span { flex: none; color: var(--mute); font: 500 9.5px/1.6 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+.wf em { font-style: normal; color: #e6ecfa; font-weight: 500; min-width: 0; word-break: break-word; }
+.wf.wide { flex-direction: column; align-items: stretch; gap: 4px; width: 100%; border-radius: 14px; padding: 9px 14px 11px; }
+.wf.wide em { white-space: pre-wrap; font-weight: 400; color: #d7deef; }
+.wf.num em { font-variant-numeric: tabular-nums; }
 .wl { color: var(--blue); text-decoration: none; font-weight: 500; } .wl:hover { text-decoration: underline; }
 .wid { font: 400 10.5px/1.3 var(--mono); color: var(--dim); }
 .wacts { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0 4px; } .btn.sm { padding: 7px 12px; font-size: 12px; }
@@ -616,7 +623,7 @@ button.pill { cursor: pointer; background: rgba(6, 11, 26, .72); -webkit-backdro
 .sv-bar { display: flex; align-items: center; gap: 12px; padding: 10px max(16px, env(safe-area-inset-left, 0px)) 10px max(16px, env(safe-area-inset-right, 0px)); padding-top: calc(10px + env(safe-area-inset-top, 0px)); border-bottom: 1px solid var(--line); } .sv-bar b { font: 600 14px/1.2 var(--sans); } .sv-bar small { color: var(--mute); flex: 1; font-size: 12px; }
 .siteview iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 .wempty { padding: 24px; text-align: center; color: var(--mute); font-size: 13px; }
-@media (max-width: 640px) { .wf { grid-template-columns: 1fr; gap: 2px; } }
+@media (max-width: 640px) { .wf { max-width: 100%; } }
 .taskp header small { color: var(--mute); font-size: 11.5px; }
 .taskp textarea { width: 100%; min-width: 0; resize: vertical; font: 500 13px/1.4 var(--sans, inherit); color: inherit; background: rgba(255,255,255,.04); border: 1px solid var(--line, rgba(255,255,255,.12)); border-radius: 10px; padding: 9px 10px; box-sizing: border-box; }
 .taskp .tf-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
@@ -3480,12 +3487,15 @@ var AREA = { websites: { agents: ['builder', 'launch', 'scribe'], units: ['evolu
 var workUnit = 'all';
 function wLink(u) { u = keep(u); if (!/^https?:\/\//i.test(u)) return ''; var h = u.replace(/^https?:\/\//i, '').split('/')[0]; return '<a class="wl" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(h) + ' ↗</a>'; }
 function wField(k, v) {
-  if (k === 'attachments' && Array.isArray(v)) return '<div class="wf"><span>files</span><em><div class="watt">' + v.map(function (a) { if (!a || !a.id) return ''; var u = '/_blob/' + esc(a.id), img = /^image\//.test(a.type || ''); return '<a href="' + u + '" target="_blank" rel="noopener">' + (img ? '<img src="' + u + '" alt="">' : '') + esc(a.name || a.id) + '</a>'; }).join('') + '</div></em></div>';
+  if (k === 'attachments' && Array.isArray(v)) return '<div class="wf wide"><span>files</span><em><div class="watt">' + v.map(function (a) { if (!a || !a.id) return ''; var u = '/_blob/' + esc(a.id), img = /^image\//.test(a.type || ''); return '<a href="' + u + '" target="_blank" rel="noopener">' + (img ? '<img src="' + u + '" alt="">' : '') + esc(a.name || a.id) + '</a>'; }).join('') + '</div></em></div>';
   if (v == null || v === '' || (typeof v === 'object' && !Array.isArray(v))) return '';
   if (Array.isArray(v)) v = v.map(function (x) { return typeof x === 'object' && x ? (x.to ? aname(x.to) + ': ' + keep(x.text) : JSON.stringify(x)) : String(x); }).join(' · ');
   var s = String(v); if (/^https?:\/\//i.test(s)) return '<div class="wf"><span>' + esc(k) + '</span>' + wLink(s) + '</div>';
   if (/At$|^at$|^doneAt$|^startedAt$|^endedAt$/.test(k) && +s > 1e12) s = dayLab(+s);
-  return '<div class="wf"><span>' + esc(k) + '</span><em>' + esc(s.slice(0, 600)) + '</em></div>';
+  s = s.slice(0, 600);
+  /* a short value sits in a pill; a long one or anything with line breaks gets a full-width bubble */
+  var wide = s.length > 46 || s.indexOf('\n') >= 0;
+  return '<div class="wf' + (wide ? ' wide' : '') + (/^[-$\d.,:\s]+$/.test(s) ? ' num' : '') + '"><span>' + esc(k) + '</span><em>' + esc(s) + '</em></div>';
 }
 var HIDE = { id: 1, version: 1 };
 function wCard(id, d, head, sub, badge, order, extra, always) {
