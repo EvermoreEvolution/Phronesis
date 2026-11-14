@@ -284,7 +284,17 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
 #feed li{display:flex;gap:10px;align-items:center;min-width:0;padding-left:9px;position:relative;animation:rowIn .55s cubic-bezier(.2,.8,.2,1)}
 #feed li::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1.5px;background:linear-gradient(180deg,transparent,var(--ac),transparent)}
 @keyframes rowIn{from{opacity:0;transform:translateX(-16px)}}
-.av{width:34px;height:34px;flex:none;border-radius:50%;display:block;object-fit:cover;border:1px solid var(--line)}
+.av{width:34px;height:34px;flex:none;border-radius:50%;display:block;object-fit:cover;border:1px solid var(--line);--ac:#8a99ba;
+  transition:border-color .5s ease,box-shadow .5s ease,filter .5s ease,opacity .5s ease}
+.av[data-st="working"]{border-color:var(--ac);animation:avWork 1.9s ease-in-out infinite}
+@keyframes avWork{0%,100%{box-shadow:0 0 0 1px color-mix(in srgb,var(--ac) 70%,transparent),0 0 6px -1px var(--ac)}
+ 50%{box-shadow:0 0 0 2.5px color-mix(in srgb,var(--ac) 85%,transparent),0 0 17px 1px var(--ac)}}
+.av[data-st="needs"]{border-color:#FFC857;animation:avNeed 1.25s ease-in-out infinite}
+@keyframes avNeed{0%,100%{box-shadow:0 0 0 1px rgba(255,200,87,.6)}50%{box-shadow:0 0 0 3px rgba(255,200,87,.85),0 0 14px rgba(255,200,87,.6)}}
+.av[data-st="problem"]{border-color:#ff8a8a;animation:avNeed .7s ease-in-out infinite}
+.av[data-st="done"]{border-color:rgba(123,227,160,.75);box-shadow:0 0 9px -2px rgba(123,227,160,.8)}
+.av[data-st="paused"],.av[data-st="dormant"]{filter:grayscale(.75) brightness(.7);opacity:.78}
+@media (prefers-reduced-motion:reduce){.av[data-st]{animation:none!important}}
 .op{flex:1;min-width:0}
 .op p{margin:0 0 4px;display:flex;gap:8px;align-items:baseline;min-width:0}
 .op b{font-weight:600;flex:none;font-size:13.4px}
@@ -1080,7 +1090,7 @@ let T=0,form='orb',orbT=0,mode='command',level='globe',CITY=null,cityObj=null,wo
 const SP={muted:{spd:.22,rad:.94,lis:0,spk:0,rv:0},waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
 let state='waiting';const o={spd:.32,rad:1,lis:0,spk:0,rv:0};let lvl=0,phi1=0,phi2=0,outerSpin=0;
 const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0};
-const DBG={};let REST=false,busyAt=performance.now(),restYaw=0,restPitch=.3,restHold=0,WFULL=false;const REST_AFTER=7;
+const COIL={turns:3.1,span:1.52,rad:.6};const DBG={};let REST=false,busyAt=performance.now(),restYaw=0,restPitch=.3,restHold=0,WFULL=false;const REST_AFTER=7;
 const SATS=[{r:1.34,ix:1.12,iz:.35,sp:.42,ph:0,g:1},{r:1.52,ix:1.30,iz:-.55,sp:-.3,ph:2.1,g:0},{r:1.72,ix:.95,iz:1.05,sp:.22,ph:4.0,g:1}];
 const cam={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0,D:3.4},camT={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0};
 let ringR=120,yawBase=0,snapAt=0;
@@ -1142,7 +1152,10 @@ function setForm(f,arg){form=f;
 const LINKS=['p-activity','p-network','p-money','p-approval','p-pipeline'].map((id,i)=>({id,el:document.getElementById(id),ok:false,x0:0,y0:0,x1:0,y1:0,qx:0,qy:0,ang:0,R0:0,tile:false,sp:.1+.017*i,ph:i*.23,cw:i%2}));
 const TILES=[...document.querySelectorAll('#asks button')].map((el,i)=>({id:'tile'+i,el,ok:false,x0:0,y0:0,x1:0,y1:0,qx:0,qy:0,ang:0,R0:0,tile:true,sp:.12+.013*i,ph:i*.31,cw:(i+1)%2}));TILES.forEach(t=>LINKS.push(t));
 const pulses=[];
-function pulseTo(id,rev){pulses.push({id,t0:T,rev:!!rev});const el=document.getElementById(id);if(!el)return;setTimeout(()=>{el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),650);},rev?0:650);}
+const SPR={};function spriteOf(hex){if(SPR[hex])return SPR[hex];const m=String(hex||'').match(/^#?([0-9a-f]{6})$/i);
+ if(!m)return SPR[hex]=SG;const n=parseInt(m[1],16),r=n>>16,g2=(n>>8)&255,b=n&255;
+ return SPR[hex]=sprite('rgba(255,255,255,1)','rgba('+r+','+g2+','+b+',.72)');}
+function pulseTo(id,rev,col){pulses.push({id,t0:T,rev:!!rev,col:col||null});const el=document.getElementById(id);if(!el)return;setTimeout(()=>{el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),650);},rev?0:650);}
 
 let cyw=1,syw=0,cp=1,sp=0,S=100;const pr={x:0,y:0,z:0,p:1};
 function proj(x,y,z){const x1=x*cyw+z*syw,z1=-x*syw+z*cyw,y2=y*cp-z1*sp,z2=y*sp+z1*cp,p=cam.D/(cam.D-z2);pr.x=cam.cx+x1*S*p;pr.y=cam.cy-y2*S*p;pr.z=z2;pr.p=p;return pr;}
@@ -1200,12 +1213,12 @@ function brainHot(names){const now=T;let any=false;const want=(names||[]).map(x=
 function drawBrain(c,big,dt){const r=c.getBoundingClientRect();if(r.width<4||r.height<4)return;
  /* Michael, Nov 13: the brain must NOT move while Phronesis talks. It turns when he is quiet, and lights up when a note is read or saved. */
  const noteHot=Math.max(0,1-(T-BRAIN.hotAll)/3.5)>.02||BRAIN.nodes.some(p=>T-(p.hot||-99)<4.5);
- if(!(body.classList.contains('phr-live')&&!noteHot))BRAIN.t+=dt;const BT=BRAIN.t;
+ if(!(body.classList.contains('s-speaking')&&!noteHot))BRAIN.t+=dt;const BT=BRAIN.t;
  const w=Math.round(r.width*DPR),h=Math.round(r.height*DPR);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
  if(!BRAIN.nodes.length)brainBuild(null);
  const x=c.getContext('2d'),ww=r.width,hh=r.height;x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,ww,hh);
  let gr=x.createRadialGradient(ww/2,hh*.5,0,ww/2,hh*.5,Math.max(ww,hh)*.62);gr.addColorStop(0,'rgba(10,26,66,.8)');gr.addColorStop(.6,'rgba(3,9,24,.72)');gr.addColorStop(1,'rgba(1,3,9,.66)');x.fillStyle=gr;x.fillRect(0,0,ww,hh);
- if(c===$('#brain')&&!(body.classList.contains('phr-live')&&!noteHot))BRAIN.rot+=dt*.085*(RM?.2:1);
+ if(c===$('#brain')&&!(body.classList.contains('s-speaking')&&!noteHot))BRAIN.rot+=dt*.085*(RM?.2:1);
  const dim=BRAIN.real?1:.42,cx=ww/2,cy=hh/2,sx=ww*.44,sy=hh*.42,cr=Math.cos(BRAIN.rot),sr=Math.sin(BRAIN.rot),ct=Math.cos(.32),st=Math.sin(.32),allHot=Math.max(0,1-(T-BRAIN.hotAll)/3.5);
  x.globalCompositeOperation='lighter';
  for(const d of BRAIN.dust){const tw=.35+.65*Math.pow(Math.max(0,Math.sin(BT*d[2]+d[3])),2),s=big?2.2:1.5;x.globalAlpha=tw*.5*dim;x.drawImage(d[4]?SGS:SBS,d[0]*ww-s*2,d[1]*hh-s*2,s*4,s*4);}
@@ -1324,9 +1337,14 @@ function sigil(id,px){const key=id+'@'+px;if(SIG[key])return SIG[key];const a=ag
  const s2=d*.12;x.drawImage(SG,R-s2,R-s2,s2*2,s2*2);x.globalCompositeOperation='source-over';
  x.strokeStyle='rgba(214,163,73,.85)';x.lineWidth=Math.max(1,d*.035);x.beginPath();x.arc(R,R,R-d*.045,0,TAU);x.stroke();
  return SIG[key]=c;}
-function avHTML(id,cls){const a=agOf(id),art=(window.PHR_AV||{})[a.id];
- return art?'<img class="av '+(cls||'')+'" src="'+art+'" alt="'+esc(a.n)+'" title="'+esc(a.n)+'">'
-           :'<canvas class="av '+(cls||'')+'" data-ag="'+esc(a.id)+'" aria-label="'+esc(a.n)+'"></canvas>';}
+function avHTML(id,cls){const a=agOf(id),art=(window.PHR_AV||{})[a.id],at=' data-ag="'+esc(a.id)+'" style="--ac:'+a.c+'"';
+ return art?'<img class="av '+(cls||'')+'"'+at+' src="'+art+'" alt="'+esc(a.n)+'" title="'+esc(a.n)+'">'
+           :'<canvas class="av '+(cls||'')+'"'+at+' aria-label="'+esc(a.n)+'"></canvas>';}
+/* Michael, Nov 14: a medallion must show what its agent is doing right now. */
+const ST_LAB={working:'is working',needs:'needs you',problem:'hit a problem',done:'just finished',paused:'is paused',dormant:'is not switched on',waiting:'is waiting'};
+function avStates(){const seen={};document.querySelectorAll('.av[data-ag]').forEach(el=>{const id=el.dataset.ag;
+ const st=seen[id]||(seen[id]=agentLive(id));if(el.dataset.st!==st.s)el.dataset.st=st.s;
+ const t=agOf(id).n+' '+(ST_LAB[st.s]||'')+(st.note?' — '+st.note:'');if(el.title!==t)el.title=t;});}
 function paintAv(el){const px=el.clientWidth||34;el.width=Math.round(px*DPR);el.height=Math.round(px*DPR);
  const x=el.getContext('2d');x.clearRect(0,0,el.width,el.height);x.drawImage(sigil(el.dataset.ag,px),0,0,el.width,el.height);}
 function paintAll(root){(root||document).querySelectorAll('canvas.av').forEach(paintAv);}
@@ -1392,7 +1410,7 @@ function rebuildWork(){const W=[];
 function rebuildAll(hit){
  const sys=HUBX.meta&&HUBX.meta.system?HUBX.meta.system:null;paused=!!(sys&&sys.paused);
  const pk=HUBX.meta&&HUBX.meta.pickup?HUBX.meta.pickup:null;pickupAt=pk?toMs(pk.lastRunAt):0;
- rebuildFeed();rebuildPipe(hit);rebuildMoney();rebuildNeeds();rebuildWork();try{if(WFULL)postWorld();}catch(e){}
+ rebuildFeed();rebuildPipe(hit);rebuildMoney();rebuildNeeds();rebuildWork();try{avStates();watchBoards();if(WFULL)postWorld();}catch(e){}
  D.news=vals(HUBX.news).filter(n=>String(n.status||'')==='new').sort((a,b)=>toMs(b.at)-toMs(a.at));
  const dot=$('#hubDot'),st=$('#hubState');
  dot.className='dot'+(paused?' r':HUB.ready?' g':'');
@@ -1443,7 +1461,13 @@ function flicker(f,who){if(mode!=='command'||state!=='waiting'||T<flickerUntil)r
  setTimeout(()=>{if(id!==run)return;caption('');setForm('orb');setState('waiting');if(wasRest)busyAt=performance.now()-REST_AFTER*1000-1;},RM?300:3400);}
 let lastRunSeen='';
 function watchRuns(){const r=vals(HUBX.runs).filter(x=>x.status==='running').sort((a,b)=>toMs(b.startedAt)-toMs(a.startedAt))[0];
- if(!r||r._id===lastRunSeen)return;lastRunSeen=r._id;const a=agOf(r.agent);if(a.f)flicker(a.f,a.n);else pulseTo('p-activity');}
+ if(!r||r._id===lastRunSeen)return;lastRunSeen=r._id;const a=agOf(r.agent);pulseTo('p-activity',false,a.c);if(a.f)flicker(a.f,a.n);}
+/* Michael, Nov 14: when a board changes, the energy leaves THAT board, in the colour of the agent behind it. */
+const WATCH=[['runs','p-activity'],['needs','p-approval'],['leads','p-pipeline'],['sales','p-money']],wSeen={};let wReady=false;
+function watchBoards(){WATCH.forEach(([coll,panel])=>{const now=HUBX[coll]||{},was=wSeen[coll];
+ const sig={};for(const k in now){const d=now[k]||{};sig[k]=String(d.stage||d.status||d.amount||toMs(d.updatedAt)||toMs(d.endedAt)||1);}
+ if(was&&wReady)for(const k in sig)if(sig[k]!==was[k]){const d=now[k]||{};pulseTo(panel,false,agOf(d.agent||(coll==='sales'?'ledger':'relay')).c);break;}
+ wSeen[coll]=sig;});wReady=true;}
 
 /* ---------- cities ---------- */
 const CITIES=[['Worcester','MA',42.26,-71.8],['Boston','MA',42.36,-71.06],['New York','NY',40.71,-74.01],['Newark','NJ',40.74,-74.17],['Providence','RI',41.82,-71.41],['Hartford','CT',41.76,-72.69],['Springfield','MA',42.1,-72.59],['Richmond','VA',37.54,-77.44],['Miami','FL',25.76,-80.19],['Chicago','IL',41.88,-87.63],['Houston','TX',29.76,-95.37],['Los Angeles','CA',34.05,-118.24],['San Francisco','CA',37.77,-122.42],['Toronto','ON',43.65,-79.38],['London','UK',51.51,-.13],['Lagos','NG',6.52,3.38],['Accra','GH',5.6,-.19],['Dubai','UAE',25.2,55.27]].map(c=>({name:c[0],reg:c[1],lat:c[2],lon:c[3]}));
@@ -1680,8 +1704,10 @@ let last=performance.now(),fc=0;
 function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last=now;T+=dt;fc++;
  if(WFULL){if(!manual)requestAnimationFrame(frame);return;}
  /* at rest he becomes the world; called on, the orb comes back */
- {const quiet=mode==='command'&&!VOICE_LIVE&&state==='waiting'&&(form==='orb'||REST);if(!quiet)busyAt=now;
-  if(quiet&&!REST&&now-busyAt>REST_AFTER*1000){REST=true;restYaw=.95;restPitch=.3;setForm('earth');ET.sat=1;}
+ {/* Michael, Nov 14: muted and left alone for 30 seconds, he goes idle and becomes the world. */
+  const restDelay=MUTED?30000:REST_AFTER*1000;
+  const quiet=mode==='command'&&(MUTED||(!VOICE_LIVE&&state==='waiting'))&&(form==='orb'||REST);if(!quiet)busyAt=now;
+  if(quiet&&!REST&&now-busyAt>restDelay){REST=true;restYaw=.95;restPitch=.3;setForm('earth');ET.sat=1;}
   else if(!quiet&&REST){REST=false;ET.sat=0;if(mode==='command'){yawBase=TAU*Math.round(cam.yaw/TAU);if(form==='earth')setForm('orb');}}
   if(REST&&now>restHold)restYaw+=dt*.085;}
  const tp=SP[state],ks=1-Math.exp(-dt*3.2);for(const k in o)o[k]+=(tp[k]-o[k])*ks;
@@ -1741,7 +1767,7 @@ function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last
     if(w<.72&&w>.03){const w2=w-(out?-.022:.022),t=1-w2/.72,v=1-t,qx=v*v*L.x0+2*v*t*L.qx+t*t*L.x1,qy=v*v*L.y0+2*v*t*L.qy+t*t*L.y1;g.globalAlpha=A*al*.45;g.drawImage(out?SB:SG,qx-sz*.7,qy-sz*.7,sz*1.4,sz*1.4);}}}
   /* the old single pulses still fire when something really happens */
   for(let i=pulses.length-1;i>=0;i--){const pu=pulses[i],L=LINKS.find(l=>l.id===pu.id);let t=(T-pu.t0)/.7;if(t>=1||!L){pulses.splice(i,1);continue;}if(!L.ok)continue;if(pu.rev)t=1-t;
-   const u=1-t,px=u*u*L.x0+2*u*t*L.qx+t*t*L.x1,py=u*u*L.y0+2*u*t*L.qy+t*t*L.y1;g.globalAlpha=1;g.drawImage(SG,px-15,py-15,30,30);}
+   const u=1-t,px=u*u*L.x0+2*u*t*L.qx+t*t*L.x1,py=u*u*L.y0+2*u*t*L.qy+t*t*L.y1;g.globalAlpha=1;g.drawImage(pu.col?spriteOf(pu.col):SG,px-15,py-15,30,30);}
   g.globalAlpha=1;g.globalCompositeOperation='source-over';}
  else pulses.length=0;
 
@@ -1770,7 +1796,12 @@ function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last
   szm=(W<860?.8:1)*(mode==='world'?1.05:Math.max(.7,ringR/200));
  for(let i=0;i<NACT;i++){
   if(T>=P.hold[i]){
-   if(isOrb){if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+(o.spk+VPULSE*1.6)*.17*env*Math.sin(T*9-rf*8));
+   if(isOrb){if(i%5>=3){/* Michael, Nov 14: a loose, stretched spring of light winding between the two inner rings */
+     const u=P.sd[i],an=u*TAU*COIL.turns+orbT*.55+P.th[i]*.06,rr=COIL.rad*o.rad*(1+.13*Math.sin(u*PI*2))*(1+(o.spk+VPULSE*1.3)*.09*env),
+       cy=(u-.5)*COIL.span*o.rad+.045*Math.sin(T*1.6+u*9),jx=(P.rf[i]-.78)*.12,
+       x=Math.cos(an)*rr+jx,z=Math.sin(an)*rr+jx*.6;
+     P.tx[i]=x*cw+z*sw;P.ty[i]=cy;P.tz[i]=-x*sw+z*cw;P.tc[i]=P.sd[i]<.5?1:0;P.ta[i]=.72+.28*Math.sin(u*TAU*COIL.turns+T*2.4);}
+    else if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+(o.spk+VPULSE*1.6)*.17*env*Math.sin(T*9-rf*8));
      P.tx[i]=(P.ux[i]*cw+P.uz[i]*sw)*rr;P.ty[i]=P.uy[i]*rr;P.tz[i]=(-P.ux[i]*sw+P.uz[i]*cw)*rr;P.tc[i]=P.sd[i]<.74?0:1;P.ta[i]=.4+.6*P.sd[i];}
     else{const R=RB[i%NR],a=P.sd[i]*TAU+orbT*R.sp,sc=.8*o.rad*(1+o.spk*.1*env*Math.sin(T*9)),
       x=Math.cos(a)*sc+P.ux[i]*.03,y=R.amp*Math.sin(2*a+R.ph)*(1+o.lis*lvl*2)*sc+P.uy[i]*.03,z=Math.sin(a)*sc+P.uz[i]*.03,
@@ -1810,7 +1841,7 @@ function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last
 /* ---------- boot ---------- */
 {const tick=()=>{$('#clock').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' · '+clockOf();};tick();setInterval(tick,20000);}
 rebuildAll();connect();
-setInterval(()=>{if(!document.hidden){rebuildFeed();watchRuns();}},15000);
+setInterval(()=>{if(!document.hidden){rebuildFeed();watchRuns();avStates();}},15000);
 {const r=slot.getBoundingClientRect();cam.cx=camT.cx=r.left+r.width/2;cam.cy=camT.cy=r.top+r.height/2;
  ringR=Math.max(60,Math.min(r.width,r.height)*.44);cam.R=camT.R=ringR*.6;}
 NACT=N;setForm('orb');setState('waiting');requestAnimationFrame(frame);
@@ -1871,7 +1902,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794631020';
+  var EH_VER = '1794633914';
   (function () {
     var born = Date.now();
     function check() {
