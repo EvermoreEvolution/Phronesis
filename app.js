@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794640045';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794640676';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -460,7 +460,12 @@
     wantWW = true; if (rec) return;
     try {
       rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US';
-      rec.onresult = function (e) { for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (/phr?on[aei]s[iea]s|fr?on[aei]s[iea]s|phonesis|phronesis|fronesis|for nicest|fernesis|phoenix is|phone assist/i.test(t)) { L('wake word: ' + t); stopWakeWord(); wake(false); return; } } };
+      /* Michael, Nov 14: his name on its own no longer wakes him — it was going off on ordinary talk.
+         A greeting, or a 'pick it up again' phrase, has to come before the name, same rule as the PC listener. */
+      var WW_NAME = /(phr?on[aei]s[iea]s|fr?on[aei]s[iea]s|phonesis|fronesis|furnaces|for nieces|frenzies)/i;
+      var WW_LEAD = /(hello|hey|hi|good morning|good afternoon|good evening|good day|splendid day|where were we|let'?s continue|talk to me|are you there|you there|carry on|come back)/i;
+      rec.onresult = function (e) { for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript, m = t.match(WW_NAME);
+        if (m && WW_LEAD.test(t.slice(0, m.index))) { L('wake word: ' + t); stopWakeWord(); wake(false); return; } } };
       rec.onend = function () { rec = null; if (wantWW && !live) setTimeout(startWakeWord, 400); };
       rec.onerror = function (e) { L('ww ' + e.error); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { wantWW = false; hint.textContent = 'Tap to talk'; } };
       rec.start();
