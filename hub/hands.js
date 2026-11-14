@@ -169,7 +169,7 @@
     var list = (res && res.landmarks) || [], i, W = innerWidth, H = innerHeight;
     while (hands.length > list.length) { var gone = hands.pop(); if (gone.mode) endDrag(gone); }
     for (i = 0; i < list.length; i++) {
-      var lmk = list[i], h = hands[i] || (hands[i] = { cx: W / 2, cy: H / 2, mode: null, pinch: false, down: 0, lastx: 0, lastt: 0 });
+      var lmk = list[i], h = hands[i] || (hands[i] = { cx: W / 2, cy: H / 2, hx: W / 2, hy: H / 2, mode: null, pinch: false, down: 0, lastx: 0, lastt: 0, tapLock: false });
       var b = T.box, sc = 1 / Math.max(0.05, 1 - 2 * b);
       h.pts = lmk.map(function (q) {
         return { x: Math.max(-40, Math.min(W + 40, ((1 - q.x) - b) * sc * W)), y: Math.max(-40, Math.min(H + 40, (q.y - b) * sc * H)) };
