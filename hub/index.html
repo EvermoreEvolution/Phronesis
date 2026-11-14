@@ -1109,7 +1109,7 @@ let T=0,form='orb',orbT=0,mode='command',level='globe',CITY=null,cityObj=null,wo
 const SP={muted:{spd:.22,rad:.94,lis:0,spk:0,rv:0},waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
 let state='waiting';const o={spd:.32,rad:1,lis:0,spk:0,rv:0};let lvl=0,phi1=0,phi2=0,outerSpin=0;
 const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0};
-const COIL={turns:3.1,span:1.52,rad:.6};const DBG={};let REST=false,busyAt=performance.now(),restYaw=0,restPitch=.3,restHold=0,WFULL=false;const REST_AFTER=7;
+const DBG={};let REST=false,busyAt=performance.now(),restYaw=0,restPitch=.3,restHold=0,WFULL=false;const REST_AFTER=7;
 const SATS=[{r:1.34,ix:1.12,iz:.35,sp:.42,ph:0,g:1},{r:1.52,ix:1.30,iz:-.55,sp:-.3,ph:2.1,g:0},{r:1.72,ix:.95,iz:1.05,sp:.22,ph:4.0,g:1}];
 const cam={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0,D:3.4},camT={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0};
 let ringR=120,yawBase=0,snapAt=0;
@@ -1815,12 +1815,7 @@ function frame(now,manual){let dt=Math.max(0,Math.min(.05,(now-last)/1000));last
   szm=(W<860?.8:1)*(mode==='world'?1.05:Math.max(.7,ringR/200));
  for(let i=0;i<NACT;i++){
   if(T>=P.hold[i]){
-   if(isOrb){if(i%5>=3){/* Michael, Nov 14: a loose, stretched spring of light winding between the two inner rings */
-     const u=P.sd[i],an=u*TAU*COIL.turns+orbT*.55+P.th[i]*.06,rr=COIL.rad*o.rad*(1+.13*Math.sin(u*PI*2))*(1+(o.spk+VPULSE*1.3)*.09*env),
-       cy=(u-.5)*COIL.span*o.rad+.045*Math.sin(T*1.6+u*9),jx=(P.rf[i]-.78)*.12,
-       x=Math.cos(an)*rr+jx,z=Math.sin(an)*rr+jx*.6;
-     P.tx[i]=x*cw+z*sw;P.ty[i]=cy;P.tz[i]=-x*sw+z*cw;P.tc[i]=P.sd[i]<.5?1:0;P.ta[i]=.72+.28*Math.sin(u*TAU*COIL.turns+T*2.4);}
-    else if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+(o.spk+VPULSE*1.6)*.17*env*Math.sin(T*9-rf*8));
+   if(isOrb){if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+(o.spk+VPULSE*1.6)*.17*env*Math.sin(T*9-rf*8));
      P.tx[i]=(P.ux[i]*cw+P.uz[i]*sw)*rr;P.ty[i]=P.uy[i]*rr;P.tz[i]=(-P.ux[i]*sw+P.uz[i]*cw)*rr;P.tc[i]=P.sd[i]<.74?0:1;P.ta[i]=.4+.6*P.sd[i];}
     else{const R=RB[i%NR],a=P.sd[i]*TAU+orbT*R.sp,sc=.8*o.rad*(1+o.spk*.1*env*Math.sin(T*9)),
       x=Math.cos(a)*sc+P.ux[i]*.03,y=R.amp*Math.sin(2*a+R.ph)*(1+o.lis*lvl*2)*sc+P.uy[i]*.03,z=Math.sin(a)*sc+P.uz[i]*.03,
@@ -1921,7 +1916,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794637078';
+  var EH_VER = '1794640045';
   (function () {
     var born = Date.now();
     function check() {
