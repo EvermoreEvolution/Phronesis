@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794630013';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794630378';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -161,6 +161,9 @@
 
   // ---------- conversation ----------
   var ws = null, live = false, sending = false, convId = null, idleT = null, pendingAwake = null, greeted = false;
+  /* Michael, Nov 13: once he has greeted me, a page reload must not make him greet me again. */
+  try { greeted = (+localStorage.getItem('phrGreetAt') || 0) > Date.now() - 3 * 3600000; } catch (e) {}
+  function markGreet() { try { localStorage.setItem('phrGreetAt', String(Date.now())); } catch (e) {} }
   // He rests only after IDLE_MS of real quiet: not while he is speaking (his face video can run a little behind the audio),
   // not while he is working out a reply, and not while anyone near the mic is talking.
   var lastAct = Date.now(), awaitingT = 0;
@@ -426,6 +429,7 @@
     ctx.resume();
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
+    markGreet();
     var line = first ? NEXT.greet : NEXT.back;
     var g = freshGreeting(first); greetLine = null; gotVoice = false;
     say(g.text);
@@ -483,9 +487,9 @@
   function imgP(src) { return new Promise(function (r) { var i = new Image(); i.onload = i.onerror = r; i.src = src; }); }
   var lmsg = $('lmsg');
   Promise.all([prepNext(), imgP(IMG.hero), imgP(IMG.glow), new Promise(function (r) { setTimeout(r, 600); })])
-    .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; if (autoWake) { autoWake = false; $('load').classList.add('gone'); greeted = true; wake(true); } })
+    .then(function () { $('load').classList.add('ready'); lmsg.textContent = 'Ready.'; if (autoWake) { autoWake = false; $('load').classList.add('gone'); var af = !greeted; greeted = true; wake(af); } })
     .catch(function (e) { L('load ' + e.message); $('load').classList.add('ready'); lmsg.textContent = 'Ready (some sounds missing).'; });
-  $('go').addEventListener('click', function () { $('load').classList.add('gone'); greeted = true; wake(true); });
+  $('go').addEventListener('click', function () { $('load').classList.add('gone'); var gf = !greeted; greeted = true; wake(gf); });
   if (EMBED) {
     // the hub tells him when to wake or rest; the loader never shows inside the hub
     $('load').classList.add('gone');

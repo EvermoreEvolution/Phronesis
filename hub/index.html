@@ -256,9 +256,9 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
 .nav button:hover{border-color:var(--line);transform:translateX(3px)}
 .nav button[aria-current="true"]{border-color:var(--gold);background:linear-gradient(100deg,rgba(44,88,176,.5),rgba(12,28,66,.5));box-shadow:inset 3px 0 0 var(--gold),0 0 20px rgba(214,163,73,.16)}
 .nav .n{margin-left:auto;font-family:var(--f-mono);font-size:11px;background:var(--gold);color:#1a1204;padding:0 6px;font-weight:500}
-.brainwrap{flex:1;min-height:92px;display:flex;flex-direction:column}
+.brainwrap{flex:1;min-height:230px;display:flex;flex-direction:column}
 .brainwrap .pb{flex:1;padding:4px 9px 10px}
-#brain{width:100%;height:100%;min-height:74px;display:block}
+#brain{width:100%;height:100%;min-height:200px;display:block}
 .chips{display:flex;flex-direction:column;gap:5px}
 .chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;border:1px solid rgba(140,175,235,.2);padding:6px 9px;display:flex;align-items:center;gap:8px;
   clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
@@ -269,7 +269,7 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
 .head{grid-area:head;display:flex;align-items:flex-end;gap:16px;min-width:0}
 .head .t{min-width:0;flex:1}
 .head .eyebrow{font-family:var(--f-mono);font-size:10px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase}
-.head h1{margin:2px 0 0;font-family:var(--f-serif);font-weight:500;font-size:clamp(21px,2.1vw,30px);line-height:1.05;text-wrap:balance}
+.head h1{margin:2px 0 0;font-family:var(--f-body);font-weight:500;font-size:clamp(21px,2.1vw,30px);line-height:1.05;text-wrap:balance}
 .head .r{display:flex;align-items:center;gap:11px;flex:none}
 .badge{font-family:var(--f-display);font-size:10.5px;letter-spacing:.16em;color:var(--gold-hi);border:1px solid var(--line);padding:4px 9px;white-space:nowrap}
 
@@ -510,7 +510,7 @@ body.v-open .head,body.v-open .acts,body.v-open .slot,body.v-open .side{display:
   .rail{clip-path:none}
   .nav{flex-direction:row;flex-wrap:wrap}.nav button{flex:1 1 130px}
   .chips{flex-direction:row;flex-wrap:wrap}
-  .brainwrap{min-height:150px}
+  .brainwrap{min-height:190px}
   .slot{min-height:min(74vw,400px)}
   .cols5{grid-template-columns:repeat(2,minmax(0,1fr))}
   .vbar{flex-wrap:wrap}#vIn{flex:1 1 150px}#line{display:none}
@@ -819,7 +819,7 @@ body.phr-live .vbar,body.s-listening .vbar{box-shadow:inset 0 0 0 2px var(--bl2)
 #brain{position:absolute;inset:0;width:100%;height:100%;display:block;min-height:0;border-radius:0;box-shadow:none}
 .brainbtn .k{position:absolute;width:6px;height:6px;border-radius:50%;background:radial-gradient(circle,#ffe2a6 0 1.4px,#b58a34 1.7px);pointer-events:none}
 .brainbtn .k.a{left:7px;top:7px}.brainbtn .k.b{right:7px;top:7px}.brainbtn .k.c{left:7px;bottom:7px}.brainbtn .k.d{right:7px;bottom:7px}
-#brainNote{margin:8px 12px 0;text-align:center;font:500 14.5px/1.22 var(--f-serif);color:#f1f4fd;font-style:normal;flex:none;padding:0}
+#brainNote{margin:8px 12px 0;text-align:center;font:400 13px/1.3 var(--f-body);color:#f1f4fd;font-style:normal;flex:none;padding:0}
 .sb-pills{display:flex;flex-direction:column;gap:8px;flex:none;padding:0 12px}
 .sb-pill{position:relative;display:flex;align-items:center;gap:13px;height:31px;padding:0 20px;border:0;color:#f1f4fd;text-align:left;width:100%;
   font:500 10px/1 var(--f-display);letter-spacing:.24em;text-transform:uppercase;white-space:nowrap;
@@ -1164,7 +1164,7 @@ function drawPin(pn){const b=pn.b,age=T-pn.t0;if(pn.t0<0||age<0)return;const d=M
  const r=8*sc;g.fillStyle='#ffc45c';g.shadowColor='#ffb030';g.shadowBlur=16;g.beginPath();g.arc(tx,ty-r*1.5,r,PI*.85,PI*2.15);g.lineTo(tx,ty);g.closePath();g.fill();g.shadowBlur=0;g.fillStyle='#1c1203';g.beginPath();g.arc(tx,ty-r*1.5,r*.4,0,TAU);g.fill();}
 
 /* ---------- the brain: his real notes and the links between them, turning slowly. It lights only when he reads or saves a note. ---------- */
-const BRAIN={nodes:[],edges:[],links:0,rot:.6,real:false,hotAll:-99};
+const BRAIN={nodes:[],edges:[],links:0,rot:.6,real:false,hotAll:-99,t:0};
 function brainBuild(notes){const src=notes&&notes.length?notes:null,nodes=[],ed=[],seen={};let s=20261113;const r=()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
  if(src){const idx={};src.forEach((x,i)=>{nodes.push({id:String(x.n||''),t:String(x.t||''),deg:0,hot:0});idx[String(x.t||'').toLowerCase()]=i;idx[String(x.n||'').toLowerCase().replace(/\.md$/,'')]=i;});
   src.forEach((x,i)=>(x.l||[]).forEach(l=>{const k=String(l).toLowerCase().replace(/\.md$/,'');let j=idx[k];if(j===undefined)j=idx[k.split('/').pop()];if(j===undefined||j===i)return;const key=i<j?i+'-'+j:j+'-'+i;if(seen[key])return;seen[key]=1;ed.push([i,j,r()]);nodes[i].deg++;nodes[j].deg++;}));}
@@ -1186,20 +1186,23 @@ function brainHot(names){const now=T;let any=false;const want=(names||[]).map(x=
  for(const a of BRAIN.nodes){const id=a.id.toLowerCase().replace(/\.md$/,''),t=a.t.toLowerCase();if(want.some(w=>w&&(w===id||w===t||id.endsWith('/'+w)||w.endsWith('/'+t)))){a.hot=now;any=true;}}
  if(!any)BRAIN.hotAll=now;}
 function drawBrain(c,big,dt){const r=c.getBoundingClientRect();if(r.width<4||r.height<4)return;
+ /* Michael, Nov 13: the brain must NOT move while Phronesis talks. It turns when he is quiet, and lights up when a note is read or saved. */
+ const noteHot=Math.max(0,1-(T-BRAIN.hotAll)/3.5)>.02||BRAIN.nodes.some(p=>T-(p.hot||-99)<4.5);
+ if(!(body.classList.contains('phr-live')&&!noteHot))BRAIN.t+=dt;const BT=BRAIN.t;
  const w=Math.round(r.width*DPR),h=Math.round(r.height*DPR);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
  if(!BRAIN.nodes.length)brainBuild(null);
  const x=c.getContext('2d'),ww=r.width,hh=r.height;x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,ww,hh);
  let gr=x.createRadialGradient(ww/2,hh*.5,0,ww/2,hh*.5,Math.max(ww,hh)*.62);gr.addColorStop(0,'rgba(10,26,66,.8)');gr.addColorStop(.6,'rgba(3,9,24,.72)');gr.addColorStop(1,'rgba(1,3,9,.66)');x.fillStyle=gr;x.fillRect(0,0,ww,hh);
- if(c===$('#brain'))BRAIN.rot+=dt*.085*(RM?.2:1);
+ if(c===$('#brain')&&!(body.classList.contains('phr-live')&&!noteHot))BRAIN.rot+=dt*.085*(RM?.2:1);
  const dim=BRAIN.real?1:.42,cx=ww/2,cy=hh/2,sx=ww*.44,sy=hh*.42,cr=Math.cos(BRAIN.rot),sr=Math.sin(BRAIN.rot),ct=Math.cos(.32),st=Math.sin(.32),allHot=Math.max(0,1-(T-BRAIN.hotAll)/3.5);
  x.globalCompositeOperation='lighter';
- for(const d of BRAIN.dust){const tw=.35+.65*Math.pow(Math.max(0,Math.sin(T*d[2]+d[3])),2),s=big?2.2:1.5;x.globalAlpha=tw*.5*dim;x.drawImage(d[4]?SGS:SBS,d[0]*ww-s*2,d[1]*hh-s*2,s*4,s*4);}
- for(const p of BRAIN.nodes){const x1=p.x*cr+p.z*sr,z1=-p.x*sr+p.z*cr,y2=p.y*ct-z1*st,z2=p.y*st+z1*ct,pp=3/(3-z2);p.sx=cx+x1*sx*pp;p.sy=cy-y2*sy*pp;p.sz=z2;p.h=Math.max(allHot*.8,Math.max(0,1-(T-(p.hot||-99))/4.5));}
+ for(const d of BRAIN.dust){const tw=.35+.65*Math.pow(Math.max(0,Math.sin(BT*d[2]+d[3])),2),s=big?2.2:1.5;x.globalAlpha=tw*.5*dim;x.drawImage(d[4]?SGS:SBS,d[0]*ww-s*2,d[1]*hh-s*2,s*4,s*4);}
+ for(const p of BRAIN.nodes){const x1=p.x*cr+p.z*sr,z1=-p.x*sr+p.z*cr,y2=p.y*ct-z1*st,z2=p.y*st+z1*ct,pp=2.15/(2.15-z2);p.sx=cx+x1*sx*pp;p.sy=cy-y2*sy*pp;p.sz=z2;p.h=Math.max(allHot*.8,Math.max(0,1-(T-(p.hot||-99))/4.5));}
  x.lineWidth=big?1.1:.8;
  for(const e of BRAIN.edges){const a=BRAIN.nodes[e[0]],b=BRAIN.nodes[e[1]],gold=a.g||b.g,dz=.25+.75*clamp((a.sz+b.sz)*.25+.5,0,1),hot=Math.max(a.h,b.h);
   x.globalAlpha=1;x.strokeStyle=gold?'rgba(255,190,90,'+(.34+.5*hot)*dz*dim+')':'rgba(96,160,255,'+(.3+.5*hot)*dz*dim+')';x.beginPath();x.moveTo(a.sx,a.sy);x.lineTo(b.sx,b.sy);x.stroke();
-  if(hot>.03){const t=(T*.9+e[2]*3)%1,s=(big?6:4)*(.6+hot);x.globalAlpha=hot*dz;x.drawImage(gold?SG:SB,a.sx+(b.sx-a.sx)*t-s,a.sy+(b.sy-a.sy)*t-s,s*2,s*2);}}
- for(const p of BRAIN.nodes){const dz=.4+.6*clamp(p.sz*.5+.5,0,1),base=(p.g?5.2:3.9)+Math.min(4,p.deg*.5),s=base*(big?1.7:1)*(.75+dz*.5)*(1+.1*Math.sin(T*p.f+p.ph))*(1+p.h*1.3);
+  if(hot>.03){const t=(BT*.9+e[2]*3)%1,s=(big?6:4)*(.6+hot);x.globalAlpha=hot*dz;x.drawImage(gold?SG:SB,a.sx+(b.sx-a.sx)*t-s,a.sy+(b.sy-a.sy)*t-s,s*2,s*2);}}
+ for(const p of BRAIN.nodes){const dz=.4+.6*clamp(p.sz*.5+.5,0,1),base=(p.g?5.2:3.9)+Math.min(4,p.deg*.5),s=base*(big?1.7:(1+Math.max(0,hh-130)/430))*(.75+dz*.55)*(1+.1*Math.sin(BT*p.f+p.ph))*(1+p.h*1.3);
   x.globalAlpha=Math.min(1,dz*dim*(1+p.h));x.drawImage(p.g?SG:SB,p.sx-s,p.sy-s,s*2,s*2);
   if(p.h>.05){const rr=s*(1.2+(1-p.h)*2.4);x.globalAlpha=p.h*.8;x.strokeStyle=p.g?'#ffd98c':'#9fd0ff';x.lineWidth=1.2;x.beginPath();x.arc(p.sx,p.sy,rr,0,TAU);x.stroke();x.lineWidth=big?1.1:.8;}}
  x.globalAlpha=1;x.globalCompositeOperation='source-over';}
@@ -1856,7 +1859,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794630013';
+  var EH_VER = '1794630378';
   (function () {
     var born = Date.now();
     function check() {

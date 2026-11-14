@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Phronesis</title>
 <meta name="theme-color" content="#01040b">
+<script>(function(){try{var q=location.search||'';if(/[?&]embed=1/.test(q))return;if(window.parent!==window)return;if(/[?&]solo=1/.test(q))return;location.replace('hub/'+q+location.hash);}catch(e){}})();</script>
 <meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500&display=swap">
@@ -91,7 +92,7 @@ body.live.speaking #mic::after{border-color:var(--gold)}
   const q = new URLSearchParams(location.search);
   window.PHR3D = q.get('head') === 'flat' ? Promise.reject(new Error('flat chosen')) : createHead3D(document.getElementById('hd3'), { base: '3d/', holo: 1 });
   window.PHR3D.catch(() => {});
-  const s = document.createElement('script'); s.src = 'app.js?v=1794630013'; document.body.appendChild(s);
+  const s = document.createElement('script'); s.src = 'app.js?v=1794630378'; document.body.appendChild(s);
 </script>
 </body>
 </html>
