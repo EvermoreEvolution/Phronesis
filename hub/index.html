@@ -574,7 +574,7 @@ body.v-open .head,body.v-open .acts,body.v-open .slot,body.v-open .side{display:
 #worldFrame{position:fixed;inset:0;width:100%;height:100%;border:0;z-index:5;background:#01040b;display:none}
 body.wfull #worldFrame{display:block}
 body.wfull .app,body.wfull #world{display:none}
-#wfClose{position:fixed;z-index:7;right:max(16px,env(safe-area-inset-right,0px));top:max(14px,env(safe-area-inset-top,0px));display:none}
+#wfClose{position:fixed;z-index:7;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));display:none}
 body.wfull #wfClose{display:block}
 
 /* ================= SAPPHIRE & GOLD SKIN (his reference sheets) ================= */
@@ -833,7 +833,9 @@ function ll(lat,lon,i){const a=lat*RAD,b=lon*RAD,c=Math.cos(a);P.tx[i]=c*Math.si
 let T=0,form='orb',orbT=0,mode='command',level='globe',CITY=null,cityObj=null,worldR=0,NACT=0;
 const SP={muted:{spd:.22,rad:.94,lis:0,spk:0,rv:0},waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
 let state='waiting';const o={spd:.32,rad:1,lis:0,spk:0,rv:0};let lvl=0,phi1=0,phi2=0,outerSpin=0;
-const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1};
+const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1,sat:0};
+let REST=false,busyAt=0,restYaw=0,WFULL=false;const REST_AFTER=7;
+const SATS=[{r:1.34,ix:1.12,iz:.35,sp:.42,ph:0,g:1},{r:1.52,ix:1.30,iz:-.55,sp:-.3,ph:2.1,g:0},{r:1.72,ix:.95,iz:1.05,sp:.22,ph:4.0,g:1}];
 const cam={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0,D:3.4},camT={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0};
 let ringR=120,yawBase=0,snapAt=0;
 
@@ -1071,7 +1073,7 @@ function rebuildWork(){const W=[];
 function rebuildAll(hit){
  const sys=HUBX.meta&&HUBX.meta.system?HUBX.meta.system:null;paused=!!(sys&&sys.paused);
  const pk=HUBX.meta&&HUBX.meta.pickup?HUBX.meta.pickup:null;pickupAt=pk?toMs(pk.lastRunAt):0;
- rebuildFeed();rebuildPipe(hit);rebuildMoney();rebuildNeeds();rebuildWork();
+ rebuildFeed();rebuildPipe(hit);rebuildMoney();rebuildNeeds();rebuildWork();try{if(WFULL)postWorld();}catch(e){}
  D.news=vals(HUBX.news).filter(n=>String(n.status||'')==='new').sort((a,b)=>toMs(b.at)-toMs(a.at));
  const dot=$('#hubDot'),st=$('#hubState');
  dot.className='dot'+(paused?' r':HUB.ready?' g':'');
@@ -1247,7 +1249,8 @@ function command(q){q=(q||'').trim();if(!q)return;const s=q.toLowerCase(),c=find
  if(/deeper|street|closer/.test(s))return deeper();
  if(/pull back|zoom out|higher/.test(s))return pullBack();
  if(/that'?ll be all|^command$|^home$|return|go back/.test(s))return toCommand();
- if(/world|globe|earth/.test(s))return openWorld();
+ if(/globe|earth/.test(s))return openWorld();
+ if(/world|headquarters|\bhq\b|team room|chat room|where the agents/.test(s))return openAgentWorld();
  if(/daily brief|brief me|the brief/.test(s))return act(async id=>{setState('thinking');await sleep(600,id);openFocus('overview');
   await say('Your brief, sir. '+D.ap.length+' waiting, '+(D.pipe.found||0)+' new leads, '+fmt$(D.score.d)+' in'+(paused?', and the team is paused':'')+'.',id);});
  if(/needs me|waiting|approv/.test(s))return act(async id=>{setState('thinking');await sleep(500,id);openFocus('needs');
@@ -1265,12 +1268,12 @@ function command(q){q=(q||'').trim();if(!q)return;const s=q.toLowerCase(),c=find
  act(async id=>{setState('thinking');await sleep(500,id);await say('Hold the mic to talk to me properly, sir. Typed, I can show you the team, the money, the pipeline, the brain or a city.',id);});}
 function go(view,tab){const m={command:'command',needs:'needs',leads:'pipeline',work:'work',money:'score',agents:'agents',operations:'operations',overview:'overview',network:'network',settings:'settings',world:'world'};
  const k=m[String(view||'').toLowerCase()]||m[String(tab||'').toLowerCase()];
- if(!k)return;if(k==='world')return openWorld();if(k==='command')return closeFocus();openFocus(k);}
+ if(!k)return;if(k==='world')return openAgentWorld();closeAgentWorld();if(k==='command')return closeFocus();openFocus(k);}
 
 /* ---------- wiring ---------- */
 document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;
  if(t.dataset.ask)return command(t.dataset.ask);
- if(t.dataset.nav){const k=t.dataset.nav;if(k==='command'){closeFocus();if(mode==='world')toCommand();}else if(k==='world'){closeFocus(1);openWorld();}else openFocus(k);return;}
+ if(t.dataset.nav){const k=t.dataset.nav;if(k==='command'){closeFocus();if(mode==='world')toCommand();}else if(k==='world'){closeFocus(1);openAgentWorld();}else openFocus(k);return;}
  if(t.dataset.city)return goCity(CITIES.find(c=>c.name===t.dataset.city));
  if('back'in t.dataset)return toCommand();
  if(t.dataset.a){const h=t.closest('[data-id]');if(!h)return;if(t.dataset.a==='review')openFocus('needs');else decide(h.dataset.id,t.dataset.a);return;}
@@ -1325,6 +1328,12 @@ addEventListener('message',e=>{const d=e.data;if(!d||d.phr!=='live-state'||e.sou
 /* ---------- the loop ---------- */
 let last=performance.now(),fc=0;
 function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
+ if(WFULL){requestAnimationFrame(frame);return;}
+ /* at rest he becomes the world; called on, the orb comes back */
+ {const quiet=mode==='command'&&!VOICE_LIVE&&state==='waiting'&&(form==='orb'||REST);if(!quiet)busyAt=now;
+  if(quiet&&!REST&&now-busyAt>REST_AFTER*1000){REST=true;restYaw=0;setForm('earth');ET.sat=1;}
+  else if(!quiet&&REST){REST=false;ET.sat=0;if(mode==='command'){yawBase=TAU*Math.round(cam.yaw/TAU);if(form==='earth')setForm('orb');}}
+  if(REST)restYaw+=dt*.11;}
  const tp=SP[state],ks=1-Math.exp(-dt*3.2);for(const k in o)o[k]+=(tp[k]-o[k])*ks;
  for(const k in E)E[k]+=(ET[k]-E[k])*(1-Math.exp(-dt*2.6));
  VPULSE+=(VLEVEL-VPULSE)*(1-Math.exp(-dt*14));
@@ -1333,7 +1342,7 @@ function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
  if(tp.rv>0){phi1+=dt*o.rv;phi2-=dt*o.rv;}else{const kk=1-Math.exp(-dt*2.4);phi1+=(Math.round(phi1/PI)*PI-phi1)*kk;phi2+=(Math.round(phi2/PI)*PI-phi2)*kk;}
  outerSpin+=dt*(.12+o.spd*.07);
  if(mode==='command'){const r=slot.getBoundingClientRect();camT.cx=r.left+r.width/2;camT.cy=r.top+r.height/2+10;
-  ringR=Math.max(60,Math.min(r.width,r.height)*.415);camT.R=ringR*.6;camT.zoom=1;camT.pitch=0;camT.yaw=yawBase+(form==='orb'?0:.24*Math.sin(T*.8));}
+  ringR=Math.max(60,Math.min(r.width,r.height)*.415);camT.R=ringR*(REST?.74:.6);camT.zoom=1;camT.pitch=REST?.32:0;camT.yaw=REST?yawBase+restYaw:yawBase+(form==='orb'?0:.24*Math.sin(T*.8));}
  else{camT.cx=W/2;camT.cy=H*(body.classList.contains('lead-in')?.44:.48);camT.R=worldR||Math.min(W,H)*.36;
   if(!drag){if(level==='globe')camT.yaw+=dt*.06;else if(level==='map'||level==='deep')camT.yaw+=dt*.035;}}
  const kc=RM?1:1-Math.exp(-dt*2.3);for(const k in camT)cam[k]+=(camT[k]-cam[k])*kc;
@@ -1408,7 +1417,15 @@ function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
   const s=P.sz[i]*p*szm*(.85+tw*.3);g.globalAlpha=al>1?1:al;g.drawImage(P.c[i]>.5?SG:SB,sx-s,sy-s,s*2,s*2);}
  g.globalAlpha=1;g.globalCompositeOperation='source-over';
 
- if(E.ring>.02&&E.orb>.02){const rs=1+(1-E.ring)*.8+VPULSE*.045,A=E.ring*E.orb,wob=o.lis*.32*Math.sin(T*2.2);
+ if(E.sat>.02&&mode==='command'){const A=E.sat*E.orb,n=96;g.save();g.lineCap='round';
+  for(const O of SATS){const cx_=Math.cos(O.ix),sx_=Math.sin(O.ix),cz_=Math.cos(O.iz),sz_=Math.sin(O.iz),a0=T*O.sp+O.ph;
+   const pt=a=>{const x=Math.cos(a)*O.r,z=Math.sin(a)*O.r,y1=-z*sx_,z1=z*cx_,X=x*cz_-y1*sz_,Y=x*sz_+y1*cz_,p=cam.D/(cam.D-z1);return[cam.cx+X*S*p,cam.cy-Y*S*p,z1,X*X+Y*Y];};
+   for(let k=0;k<n;k++){const a=k/n*TAU,b=(k+1)/n*TAU,q=pt(a),w=pt(b);if(q[2]<0&&q[3]<1.02)continue;
+    let d=((a0-a)%TAU+TAU)%TAU;const tr=d<1.5?1-d/1.5:0,back=q[2]<0?.35:1;
+    g.strokeStyle=(O.g?'rgba(232,186,96,':'rgba(132,186,255,')+A*back*(.26+.7*tr)+')';g.lineWidth=.8+tr*1.4;g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(w[0],w[1]);g.stroke();}
+   const h=pt(a0);if(!(h[2]<0&&h[3]<1.02)){g.globalCompositeOperation='lighter';g.globalAlpha=A;const ss=Math.max(7,ringR*.05);g.drawImage(O.g?SG:SB,h[0]-ss,h[1]-ss,ss*2,ss*2);g.globalAlpha=1;g.globalCompositeOperation='source-over';}}
+  g.restore();}
+ if(E.ring>.02&&E.orb>.02&&E.sat<.98){const rs=1+(1-E.ring)*.8+VPULSE*.045,A=E.ring*E.orb*(1-E.sat),wob=o.lis*.32*Math.sin(T*2.2);
   ring3(ringR*.69*rs,PI/4,phi1+wob,orbT*.5,Math.max(2.4,ringR*.02),A);
   ring3(ringR*.83*rs,-PI/4,phi2-wob,-orbT*.4,Math.max(2.8,ringR*.024),A);outerRing(ringR*rs,A);}
 
@@ -1436,7 +1453,54 @@ setInterval(()=>{if(!document.hidden){rebuildFeed();watchRuns();}},15000);
  ringR=Math.max(60,Math.min(r.width,r.height)*.44);cam.R=camT.R=ringR*.6;}
 NACT=N;setForm('orb');setState('waiting');requestAnimationFrame(frame);
 addEventListener('resize',()=>{for(const k in SIG)delete SIG[k];paintAll();});
-window.__hud={command,go,openFocus,openWorld,goCity:n=>goCity(CITIES.find(c=>c.name===n)),HUBX,D,refresh:rebuildAll};
+/* ---------- the agents' world: the animated headquarters, fed live ---------- */
+let wfLoaded=false,wfReady=false,wfPostAt=0;
+function agentLive(id){const lag=(HUBX.agents||{})[id],now=Date.now(),out={s:'waiting',note:'',n:0};
+ if(lag&&lag.audit==='asleep'){out.s='dormant';out.note='Asleep'+(lag.wakesWhen?' · wakes '+lag.wakesWhen:'');return out;}
+ if(lag&&lag.audit==='folded'){out.s='dormant';out.note='Folded into '+(lag.foldedInto||'another agent');return out;}
+ if(!lag||!lag.switchedOn){out.s='dormant';out.note='Not switched on yet';return out;}
+ if(lag.enabled===false){out.s='paused';out.note='Paused'+(lag.pausedBy?' by '+String(lag.pausedBy).replace(/\s*\(.*$/,''):'');return out;}
+ if(paused){out.s='paused';out.note='The whole team is paused';return out;}
+ let lastR=null,lastE=0,work=null;
+ for(const r of vals(HUBX.runs)){if(r.agent!==id)continue;const st=toMs(r.startedAt),en=toMs(r.endedAt);
+  if(st&&!en&&now-st<45*60000){if(!work||st>toMs(work.startedAt))work=r;}else if(en>lastE){lastE=en;lastR=r;}}
+ if(work){out.s='working';out.note=keep(work.text||work.summary||work.task||'');return out;}
+ if(lastR&&String(lastR.status)==='problem'&&now-lastE<60*60000){out.s='problem';out.note=keep(lastR.summary);return out;}
+ const pn=vals(HUBX.needs).filter(n=>n.agent===id&&(!n.status||n.status==='pending'));
+ if(pn.length){out.s='needs';out.n=pn.length;out.note=keep(pn[0].text);return out;}
+ if(lastR&&now-lastE<25*60000){out.s='done';out.note=keep(lastR.summary);return out;}
+ out.note=keep(lag.note||'');return out;}
+function worldPayload(){const now=Date.now(),d0=new Date(now).setHours(0,0,0,0),known={};AGENTS.forEach(a=>known[a.id]=1);
+ const agents={},chat=[];AGENTS.forEach(a=>agents[a.id]=agentLive(a.id));
+ for(const r of vals(HUBX.runs)){if(!known[r.agent])continue;const st=toMs(r.startedAt),en=toMs(r.endedAt);if(st<d0-864e5)continue;
+  if(en&&r.summary)chat.push({k:'r:'+r._id,from:r.agent,to:(r.to&&(r.to==='you'||known[r.to]))?r.to:'you',text:keep(r.summary),at:en,kind:r.status==='problem'?'problem':'done'});
+  (Array.isArray(r.handoffs)?r.handoffs:[]).forEach((h,i)=>{if(h&&h.text&&known[h.to])chat.push({k:'h:'+r._id+':'+i,from:r.agent,to:h.to,text:keep(h.text),at:(en||st)+1,kind:'handoff'});});}
+ for(const c of vals(HUBX.commands)){if(c.type==='task'&&c.createdBy==='michael'&&toMs(c.createdAt)>=d0-864e5)chat.push({k:'c:'+c._id,from:'you',to:known[c.agent]?c.agent:'relay',text:keep(c.text),at:toMs(c.createdAt),kind:'mine'});}
+ for(const n of vals(HUBX.needs)){if(known[n.agent]&&toMs(n.createdAt)>=d0-864e5)chat.push({k:'n:'+n._id,from:n.agent,to:'you',text:keep(n.text),at:toMs(n.createdAt),kind:'needs'});}
+ const sales=vals(HUBX.sales).filter(x=>toMs(x.at));
+ for(const x of sales){if(toMs(x.at)>=d0-864e5)chat.push({k:'s:'+x._id,from:'ledger',to:'you',text:'Sale logged: '+keep(x.what)+', '+fmt$(+x.amount||0),at:toMs(x.at),kind:'money'});}
+ chat.sort((x,y)=>x.at-y.at);
+ const hist=[],today=[],start=d0-29*864e5;let cr=0,cp_=0,cs=0;
+ for(let k=0;k<30;k++){const dS=start+k*864e5,dE=dS+864e5;for(const x of sales){const at=toMs(x.at),v=+x.amount||0;if((k===0?at<dE:(at>=dS&&at<dE))&&dE<=d0){cr+=v;cp_+=v-Math.round(v*.22);cs++;}}hist.push({rev:cr,profit:cp_,sales:cs});}
+ for(const x of sales){const at=toMs(x.at);if(at>=d0)today.push({at,amount:+x.amount||0,what:keep(x.what)});}
+ return{phr:'live',agents,chat:chat.slice(-80),money:{hist,base:{rev:cr,profit:cp_,sales:cs},today}};}
+function postWorld(force){const f=$('#worldFrame');if(!wfReady||!f.contentWindow)return;if(!force&&Date.now()-wfPostAt<1500)return;wfPostAt=Date.now();
+ try{f.contentWindow.postMessage(worldPayload(),'*');}catch(e){}}
+function openAgentWorld(){closeFocus(1);if(mode==='world')toCommand(true);WFULL=true;body.classList.add('wfull');
+ $$('.nav button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.nav==='world')));
+ const f=$('#worldFrame');if(!wfLoaded){wfLoaded=true;f.src='world.html?v='+(window.EH_VER||Date.now());setTimeout(()=>{if(!wfReady&&WFULL)toast('The world is slow to open, sir. Give it a moment.');},9000);}else postWorld(true);}
+function closeAgentWorld(){if(!WFULL)return;WFULL=false;body.classList.remove('wfull');busyAt=performance.now();
+ $$('.nav button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.nav==='command')));}
+$('#wfClose').addEventListener('click',closeAgentWorld);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&WFULL)closeAgentWorld();});
+addEventListener('message',e=>{const d=e.data,f=$('#worldFrame');if(!d||!f||e.source!==f.contentWindow)return;
+ if(d.phr==='world-ready'){wfReady=true;[400,2500,6000,12000].forEach(ms=>setTimeout(()=>postWorld(true),ms));}
+ if(d.phr==='room-say'){const known={};AGENTS.forEach(a=>known[a.id]=a.n);const to=known[d.to]?d.to:'relay',txt=String(d.text||'').slice(0,600);
+  const ack=(ok,msg)=>{try{f.contentWindow.postMessage({phr:'room-ack',ok,msg},'*');}catch(x){}};
+  if(!txt)return ack(false,'Empty message.');
+  window.EH_QUEUE_TASK(txt,to,'livehub').then(r=>{const m=String(r||'');ack(true,/^SAVED, NOT STARTED/.test(m)?'Saved for '+known[to]+'. The pickup collects it within the hour.':/^NOT STARTED/.test(m)?'Saved, but the team is not running, so nothing starts yet.':'Saved for '+known[to]+', but I could not confirm the team is running.');setTimeout(()=>postWorld(true),1500);},
+   err=>ack(false,'Not sent: '+(err&&err.message||err)));}});
+window.__hud={rest:()=>REST,command,go,openFocus,openWorld,openAgentWorld,closeAgentWorld,worldPayload,goCity:n=>goCity(CITIES.find(c=>c.name===n)),HUBX,D,refresh:rebuildAll};
 })();
 
 </script>
@@ -1445,7 +1509,7 @@ window.__hud={command,go,openFocus,openWorld,goCity:n=>goCity(CITIES.find(c=>c.n
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794626076';
+  var EH_VER = '1794626857';
   (function () {
     var born = Date.now();
     function check() {
@@ -1526,7 +1590,7 @@ window.__hud={command,go,openFocus,openWorld,goCity:n=>goCity(CITIES.find(c=>c.n
     try { if (want === 'command') hud.go('command'); else hud.go(want); } catch (e) { return Promise.reject(new Error('The screen did not change: ' + e.message)); }
     return new Promise(function (res) { setTimeout(function () {
       var f = document.getElementById('focus'), open = document.body.classList.contains('v-open'), k = f && f.dataset.k,
-          inWorld = document.body.classList.contains('world');
+          inWorld = document.body.classList.contains('world') || document.body.classList.contains('wfull');
       var got = inWorld ? 'world' : open ? k : 'command';
       var ok = want === 'world' ? inWorld : want === 'command' ? (!open && !inWorld) : (got === ({ leads: 'pipeline', money: 'score' }[want] || want));
       res(ok ? 'OPENED ' + s[2] + '.' : 'NOT CONFIRMED. I asked for ' + s[2] + ' but the page shows "' + got + '".');
