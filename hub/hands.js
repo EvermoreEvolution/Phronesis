@@ -34,7 +34,11 @@
 
   /* ---------- the hand of light ---------- */
   function sizeCanvas() {
-    var r = window.devicePixelRatio || 1;
+    /* Michael, Nov 14: a full-screen canvas at full pixel ratio is real GPU memory. While hands are off it
+       stays 1x1; while on it is capped at 1.3, so a busy machine (Lightroom denoising, a screen recorder)
+       is not asked for another 25 MB of video memory. */
+    if (!on) { cv.width = cv.height = 1; return; }
+    var r = Math.min(1.3, window.devicePixelRatio || 1);
     cv.width = Math.round(innerWidth * r); cv.height = Math.round(innerHeight * r);
     g.setTransform(r, 0, 0, r, 0, 0);
   }
@@ -201,12 +205,20 @@
   }
 
   /* ---------- camera ---------- */
+  var slowRun = 0, lastDet = 0;
   function loop() {
     raf = requestAnimationFrame(loop);
     if (!on || !mark || video.readyState < 2) return;
     var now = performance.now();
-    var res = null;
+    if (now - lastDet < 33) return;            // 30 readings a second is plenty; the screen still draws at full rate
+    lastDet = now;
+    var t0 = performance.now(), res = null;
     try { res = mark.detectForVideo(video, now); } catch (e) { return; }
+    var cost = performance.now() - t0;
+    /* if reading a frame starts taking a third of a second, this machine is busy with something heavier.
+       Stand down rather than drag the whole page under with it. */
+    if (cost > 320) { slowRun++; if (slowRun >= 6) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
+    else slowRun = Math.max(0, slowRun - 1);
     onFrame(res, now);
   }
 
@@ -224,15 +236,15 @@
       })
       .then(function (v) {
         return v.FilesetResolver.forVisionTasks(MP + 'wasm').then(function (fs) {
-          return v.HandLandmarker.createFromOptions(fs, {
-            baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
+          var opt = function (d) { return { baseOptions: { modelAssetPath: MODEL, delegate: d },
             runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.55,
-            minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5
-          });
+            minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 }; };
+          return v.HandLandmarker.createFromOptions(fs, opt('GPU'))
+                  .catch(function () { return v.HandLandmarker.createFromOptions(fs, opt('CPU')); });
         });
       })
       .then(function (m) {
-        mark = m; on = true; starting = false; sizeCanvas();
+        mark = m; on = true; starting = false; slowRun = 0; sizeCanvas();
         if (!raf) loop();
         say('Show me a hand');
         return true;
@@ -250,14 +262,16 @@
     try { if (video.srcObject) video.srcObject.getTracks().forEach(function (t2) { t2.stop(); }); } catch (e) {}
     video.srcObject = null;
     if (hud().orbZoom) hud().orbZoom(1);
-    if (g) g.clearRect(0, 0, innerWidth, innerHeight);
+    if (g) { g.clearRect(0, 0, innerWidth, innerHeight); }
     D.body.classList.remove('hands-on');
+    try { if (mark && mark.close) mark.close(); } catch (e) {}
+    mark = null; sizeCanvas();
   }
 
   function boot() {
     video = $('#handcam'); cv = $('#handfx'); pill = $('#handpill'); txt = $('#handtxt');
     if (!video || !cv) return;
-    g = cv.getContext('2d'); sizeCanvas();
+    g = cv.getContext('2d'); cv.width = cv.height = 1;
     addEventListener('resize', sizeCanvas);
   }
   if (D.readyState === 'loading') addEventListener('DOMContentLoaded', boot); else boot();
