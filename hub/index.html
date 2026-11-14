@@ -123,7 +123,7 @@
 <meta name="robots" content="noindex">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
   color-scheme:dark; --ink:#01030a;
@@ -132,7 +132,7 @@
   --line:rgba(214,163,73,.46); --line-soft:rgba(214,163,73,.16);
   --blue:#2f7fff; --blue-hi:#a8ceff; --blue-soft:rgba(47,127,255,.16);
   --text:#e9eefb; --muted:#8a99ba; --amber:#ff9d4a;
-  --f-display:'Cinzel','Trajan Pro','Times New Roman',serif;
+  --f-display:'Poppins',system-ui,-apple-system,'Segoe UI',sans-serif;
   --f-body:'Cormorant Garamond','EB Garamond',Georgia,serif;
   --f-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
 }
@@ -149,6 +149,13 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
 .sky{position:fixed;left:-30%;top:-30%;width:160%;height:160%;z-index:0;pointer-events:none;will-change:transform}
 #sky1{background:radial-gradient(34vmax 25vmax at 30% 34%,rgba(40,88,205,.34),transparent 64%),radial-gradient(30vmax 22vmax at 72% 62%,rgba(18,48,146,.32),transparent 64%),radial-gradient(22vmax 16vmax at 54% 16%,rgba(88,40,150,.17),transparent 66%);animation:dr1 54s ease-in-out infinite alternate}
 #sky2{background:radial-gradient(26vmax 18vmax at 62% 40%,rgba(196,132,44,.15),transparent 62%),radial-gradient(30vmax 20vmax at 24% 70%,rgba(28,72,184,.26),transparent 64%);animation:dr2 76s ease-in-out infinite alternate;mix-blend-mode:screen}
+#dust{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.85;background-repeat:repeat;
+  background-image:radial-gradient(1.1px 1.1px at 18% 24%,rgba(226,238,255,.9),transparent),radial-gradient(1px 1px at 72% 12%,rgba(200,220,255,.75),transparent),radial-gradient(1.3px 1.3px at 41% 68%,rgba(255,238,205,.8),transparent),radial-gradient(.9px .9px at 86% 54%,rgba(210,228,255,.7),transparent),radial-gradient(1.1px 1.1px at 9% 77%,rgba(236,244,255,.75),transparent),radial-gradient(1px 1px at 58% 88%,rgba(255,232,190,.6),transparent),radial-gradient(.9px .9px at 32% 41%,rgba(206,226,255,.6),transparent),radial-gradient(1.2px 1.2px at 94% 30%,rgba(232,242,255,.7),transparent);
+  background-size:340px 300px,420px 380px,300px 280px,500px 460px,380px 340px,460px 420px,260px 240px,520px 480px;animation:tw 7s ease-in-out infinite alternate}
+@keyframes tw{from{opacity:.55}to{opacity:1}}
+#dust2{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;background-repeat:repeat;
+  background-image:radial-gradient(1px 1px at 50% 50%,rgba(255,255,255,.55),transparent);background-size:170px 160px;animation:tw2 11s ease-in-out infinite alternate}
+@keyframes tw2{from{opacity:.25;transform:translateY(0)}to{opacity:.6;transform:translateY(-10px)}}
 #mist{position:fixed;left:-30%;top:-30%;width:160%;height:160%;z-index:0;pointer-events:none;opacity:.5;mix-blend-mode:screen;will-change:transform;background:radial-gradient(30vmax 15vmax at 26% 32%,rgba(66,120,224,.26),transparent 70%),radial-gradient(34vmax 17vmax at 74% 64%,rgba(32,78,190,.24),transparent 70%),radial-gradient(22vmax 12vmax at 58% 18%,rgba(200,148,68,.13),transparent 72%);animation:dr3 46s ease-in-out infinite alternate}
 @keyframes dr1{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.18)}}
 @keyframes dr2{from{transform:translate3d(4%,2%,0) scale(1.12) rotate(0deg)}to{transform:translate3d(-4%,-3%,0) scale(1) rotate(8deg)}}
@@ -365,6 +372,8 @@ body.s-listening .wave i,body.s-speaking .wave i{animation:wv .7s ease-in-out in
 .wave i:nth-child(2n){animation-delay:.12s}.wave i:nth-child(3n){animation-delay:.27s}.wave i:nth-child(5n){animation-delay:.4s}
 @keyframes wv{to{height:18px}}
 .mic{width:34px;height:34px;border:1px solid var(--line);display:grid;place-items:center;flex:none;background:rgba(8,18,40,.6);border-radius:50%;transition:box-shadow .3s,border-color .3s}
+body.muted .mic{border-color:#ff6a5a;box-shadow:0 0 16px rgba(255,106,90,.5)}
+body.muted #statePill{border-color:#ff6a5a;color:#ff9d8a;background:rgba(40,8,8,.5);box-shadow:none}
 body.s-listening .mic,body.phr-live .mic{border-color:var(--blue-hi);box-shadow:0 0 18px rgba(47,127,255,.6)}
 #statePill{flex:none;font-family:var(--f-mono);font-size:10px;letter-spacing:.17em;text-transform:uppercase;padding:7px 14px;border:1px solid var(--line);color:var(--gold-hi);background:rgba(8,18,40,.6);min-width:112px;text-align:center;transition:all .35s;
   clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
@@ -655,25 +664,23 @@ body.wfull #wfClose{display:block}
 .chip{border:0;border-radius:30px;padding:7px 13px;background:linear-gradient(180deg,rgba(10,24,56,.7),rgba(4,10,26,.7));
   box-shadow:inset 0 0 0 1.4px rgba(214,163,73,.5);clip-path:none;font-size:9.5px}
 
-/* the boards: gold frame, blue light bar, no busy machining */
-.panel{border-radius:12px;clip-path:none!important;
-  background:linear-gradient(180deg,rgba(6,16,38,.56),rgba(2,7,20,.6));
-  box-shadow:inset 0 0 0 2px rgba(214,163,73,.66),0 0 30px rgba(14,44,120,.26)}
-.panel::after{background:none!important;border-radius:12px;
-  box-shadow:inset 0 0 0 5px rgba(2,6,16,.0),inset 0 0 0 1px rgba(214,163,73,.22)}
-.panel>.ph{border-bottom:1px solid rgba(214,163,73,.22);padding:11px 15px 9px;position:relative}
-.panel>.ph::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;
-  background:linear-gradient(90deg,var(--bl),transparent 70%);box-shadow:0 0 10px rgba(47,127,255,.6);opacity:.7}
-.panel .ph h2{font-size:12.5px;letter-spacing:.2em}
-.panel.flash{box-shadow:inset 0 0 0 2px var(--g1),0 0 44px rgba(255,180,70,.3)}
-#p-money .money b{text-shadow:0 0 16px rgba(255,200,110,.45)}
+/* the boards keep their machined edges; the glass behind them is thinner so space shows through */
+.panel{background:rgba(3,9,22,.3);-webkit-backdrop-filter:blur(13px) saturate(1.25);backdrop-filter:blur(13px) saturate(1.25)}
+.rail{background:linear-gradient(180deg,rgba(5,12,28,.44),rgba(2,6,16,.52)) padding-box,
+      linear-gradient(150deg,rgba(214,163,73,.55),rgba(138,100,32,.35) 40%,rgba(214,163,73,.5) 70%,rgba(247,212,133,.5)) border-box;
+  -webkit-backdrop-filter:blur(13px) saturate(1.2);backdrop-filter:blur(13px) saturate(1.2);
+  box-shadow:0 0 22px rgba(20,60,150,.18),inset 0 0 36px rgba(6,16,44,.45)}
+.rail::after{border-color:rgba(214,163,73,.2)}
+.rail::before{opacity:.6;height:2px}
+.vbar{background:rgba(3,9,22,.34);-webkit-backdrop-filter:blur(13px) saturate(1.25);backdrop-filter:blur(13px) saturate(1.25)}
+.fp{background:rgba(3,9,22,.5);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25)}
+.nav button{background:linear-gradient(180deg,rgba(8,20,46,.42),rgba(3,8,20,.42))}
+.nav button[aria-current="true"]{background:linear-gradient(180deg,rgba(26,62,136,.46),rgba(6,16,40,.5))}
+.me,.brainwrap{background:rgba(5,13,32,.38)}
+.asks button{background:linear-gradient(180deg,rgba(8,20,46,.46),rgba(3,8,20,.46));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.chip{background:linear-gradient(180deg,rgba(8,20,46,.46),rgba(3,8,20,.46))}
 
 /* the centre: his name and what he is saying, under the orb */
-#hero{position:absolute;left:0;right:0;top:-2px;text-align:center;pointer-events:none;z-index:3}
-#hero b{display:block;font-family:var(--f-display);font-size:clamp(17px,1.65vw,23px);letter-spacing:.4em;text-indent:.42em;color:var(--gold-hi);text-shadow:0 0 26px rgba(255,200,110,.5)}
-#hero small{display:block;font-family:var(--f-mono);font-size:8.6px;letter-spacing:.3em;color:var(--gold);margin-top:2px;opacity:.9}
-#heroSay{display:block;margin-top:6px;font-size:17px;font-size:18px;color:#dce6fa;font-style:italic;text-shadow:0 0 18px #000;
-  max-width:min(620px,86%);margin-left:auto;margin-right:auto;text-wrap:balance}
 
 /* the action row, as on his dashboard sheet */
 .asks{gap:9px}
@@ -720,7 +727,7 @@ body.phr-live .vbar,body.s-listening .vbar{box-shadow:inset 0 0 0 2px var(--bl2)
 <g fill="#ffdf9e"><path d="M20.4 16.2h2.3v15.6h-2.3z"/><path d="M22.1 19.3c3.9 0 6.3 1.6 6.3 4.6s-2.4 4.7-6.3 4.7h-1.3v-2.1h1.2c2.4 0 3.8-.9 3.8-2.6s-1.4-2.5-3.8-2.5h-1.2v-2.1z"/><circle cx="24" cy="8.3" r="1.6"/><circle cx="24" cy="39.7" r="1.6"/></g></symbol>
 </defs></svg>
 
-<div class="sky" id="sky1" aria-hidden="true"></div><div class="sky" id="sky2" aria-hidden="true"></div><div id="mist" aria-hidden="true"></div>
+<div class="sky" id="sky1" aria-hidden="true"></div><div class="sky" id="sky2" aria-hidden="true"></div><div id="mist" aria-hidden="true"></div><div id="dust" aria-hidden="true"></div><div id="dust2" aria-hidden="true"></div>
 <canvas id="stage" aria-hidden="true"></canvas>
 
 <div class="app">
@@ -751,7 +758,7 @@ body.phr-live .vbar,body.s-listening .vbar{box-shadow:inset 0 0 0 2px var(--bl2)
     <div class="pb"><div class="trail" id="trail"></div><ul id="feed"></ul></div>
   </section>
 
-  <div class="slot" id="slot"><div id="hero"><b>PHRONESIS</b><small>EVERMORE EVOLUTION</small><em id="heroSay"></em></div><div id="caption"></div></div>
+  <div class="slot" id="slot"><div id="caption"></div></div>
 
   <section class="side">
     <div class="panel p-board" id="p-money"><div class="ph"><svg class="i"><use href="#i-coin"/></svg><h2>MONEY BOARD</h2><button class="open" data-nav="score" aria-label="Open the money board"><svg class="i"><use href="#i-open"/></svg></button></div>
@@ -820,11 +827,11 @@ if(mb)for(let iy=0;iy<MH;iy++){const lat=90-(iy+.5)/2,cw=Math.cos(lat*RAD);for(l
 const N=W<860?2100:3800,F=()=>new Float32Array(N);
 const P={x:F(),y:F(),z:F(),tx:F(),ty:F(),tz:F(),c:F(),tc:F(),a:F(),ta:F(),sd:F(),hold:F(),sz:F(),ux:F(),uy:F(),uz:F(),rf:F(),th:F(),tw:F()};
 for(let i=0;i<N;i++){const u=rnd()*2-1,a=rnd()*TAU,s=Math.sqrt(1-u*u);P.ux[i]=s*Math.cos(a);P.uy[i]=u;P.uz[i]=s*Math.sin(a);P.rf[i]=.45+.55*Math.sqrt(rnd());P.sd[i]=rnd();P.th[i]=Math.atan2(P.uy[i],P.ux[i]);P.sz[i]=1.5+rnd()*rnd()*4.4;P.tw[i]=rnd()*TAU;P.x[i]=P.ux[i]*.05;P.y[i]=P.uy[i]*.05;P.z[i]=P.uz[i]*.05;P.ta[i]=1;}
-const NR=6,RB=[];for(let j=0;j<NR;j++){const ax=.5+j*1.07,az=j*.93;RB.push({sp:(j%2?-1:1)*(.55+.12*j),amp:.3+.07*(j%3),ph:j*1.3,cx:Math.cos(ax),sx:Math.sin(ax),cz:Math.cos(az),sz:Math.sin(az)});}
+const rf2=P.rf;const NR=6,RB=[];for(let j=0;j<NR;j++){const ax=.5+j*1.07,az=j*.93;RB.push({sp:(j%2?-1:1)*(.55+.12*j),amp:.3+.07*(j%3),ph:j*1.3,cx:Math.cos(ax),sx:Math.sin(ax),cz:Math.cos(az),sz:Math.sin(az)});}
 function ll(lat,lon,i){const a=lat*RAD,b=lon*RAD,c=Math.cos(a);P.tx[i]=c*Math.sin(b);P.ty[i]=Math.sin(a);P.tz[i]=c*Math.cos(b);}
 
 let T=0,form='orb',orbT=0,mode='command',level='globe',CITY=null,cityObj=null,worldR=0,NACT=0;
-const SP={waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
+const SP={muted:{spd:.22,rad:.94,lis:0,spk:0,rv:0},waiting:{spd:.32,rad:1,lis:0,spk:0,rv:0},listening:{spd:.7,rad:1.03,lis:1,spk:0,rv:0},thinking:{spd:2.3,rad:.84,lis:0,spk:0,rv:.85},working:{spd:1.35,rad:.95,lis:0,spk:0,rv:.55},speaking:{spd:1,rad:1,lis:0,spk:1,rv:1.7}};
 let state='waiting';const o={spd:.32,rad:1,lis:0,spk:0,rv:0};let lvl=0,phi1=0,phi2=0,outerSpin=0;
 const E={back:.6,earth:0,map:0,ring:1,link:1,orb:1},ET={back:.6,earth:0,map:0,ring:1,link:1,orb:1};
 const cam={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0,D:3.4},camT={cx:W/2,cy:H/2,R:120,zoom:1,yaw:0,pitch:0};
@@ -909,7 +916,6 @@ function outerRing(rad,alpha){const cx=cam.cx,cy=cam.cy,w=Math.max(3,rad*.022);
 
 const NS=W<860?150:300,ST=new Float32Array(NS*4);
 for(let i=0;i<NS;i++){ST[i*4]=rnd()*TAU;ST[i*4+1]=rnd();ST[i*4+2]=rnd();ST[i*4+3]=.8+rnd()*1.3;}
-const shoot={t0:-9,next:3,x:0,y:0,a:.6};
 let fpsN=0,fpsT=performance.now();
 
 const found=[];let lastPin=null,cardPin=null;
@@ -1102,12 +1108,12 @@ function connect(){
 let run=0,typeTimer=0;
 const sleep=(ms,id)=>new Promise((res,rej)=>setTimeout(()=>id===run?res():rej('x'),RM?ms*.35:ms));
 async function act(fn){const id=++run;try{await fn(id);}catch(e){if(e!=='x')console.error(e);}}
-const CAP={waiting:'Waiting',listening:'Listening',thinking:'Thinking',working:'Working',speaking:'Speaking'};
+const CAP={muted:'Muted',waiting:'Waiting',listening:'Listening',thinking:'Thinking',working:'Working',speaking:'Speaking'};
 function setState(s){state=s;body.className=body.className.replace(/\bs-\w+/g,'').trim()+' s-'+s;
  $('#statePill').textContent=CAP[s];$('#sideState').textContent='Phronesis · '+CAP[s];}
-function showLine(t){clearInterval(typeTimer);$('#line').textContent=t;$('#wSay').textContent=t;const h=$('#heroSay');if(h)h.textContent=t?'\u201c'+t+'\u201d':'';}
+function showLine(t){clearInterval(typeTimer);$('#line').textContent=t;$('#wSay').textContent=t;}
 function say(text,id){setState('speaking');pulseTo('p-activity');clearInterval(typeTimer);let k=0;const els=[$('#line'),$('#wSay')];
- const hs=$('#heroSay');return new Promise((res,rej)=>{typeTimer=setInterval(()=>{if(id!==run){clearInterval(typeTimer);rej('x');return;}k+=2;els.forEach(e=>e.textContent=text.slice(0,k));if(hs)hs.textContent='\u201c'+text.slice(0,k)+'\u201d';
+ const hs=null;return new Promise((res,rej)=>{typeTimer=setInterval(()=>{if(id!==run){clearInterval(typeTimer);rej('x');return;}k+=2;els.forEach(e=>e.textContent=text.slice(0,k));
   if(k>=text.length){clearInterval(typeTimer);setTimeout(()=>{if(id===run){setState(VOICE_LIVE?'listening':'waiting');res();}else rej('x');},900);}},RM?1:26);});}
 function caption(t){const c=$('#caption');c.textContent=t||'';c.classList.toggle('on',!!t);}
 let flickerUntil=0;
@@ -1269,7 +1275,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if('back'in t.dataset)return toCommand();
  if(t.dataset.a){const h=t.closest('[data-id]');if(!h)return;if(t.dataset.a==='review')openFocus('needs');else decide(h.dataset.id,t.dataset.a);return;}
  if(t.id==='fClose')return closeFocus();if(t.id==='bDeep')return deeper();if(t.id==='bBack')return pullBack();
- if(t.id==='micBtn')return wakeVoice();
+ if(t.id==='micBtn')return toggleMute();
  if(t.id==='statePill')return wakeVoice();});
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(body.classList.contains('v-open'))closeFocus();else if(mode==='world')toCommand();}});
 $('#vForm').addEventListener('submit',e=>{e.preventDefault();const v=$('#vIn').value;$('#vIn').value='';$('#vIn').blur();command(v);});
@@ -1284,18 +1290,34 @@ wl.addEventListener('pointermove',e=>{if(!drag)return;camT.yaw+=(e.clientX-drag.
  h+='<i style="left:'+x+'%;top:'+y+'%;width:'+sz+'vmax;height:'+sz*.72+'vmax;--fx:'+sx*30+'vw;--fy:'+sy*22+'vh;--tx:'+sx*46+'vw;--ty:'+(sy*30-20)+'vh;animation-delay:'+k*28+'ms"></i>';}cl.innerHTML=h;}
 
 /* ---------- Phronesis himself: the real voice, in a frame over the orb ---------- */
-let VOICE_LIVE=false,voiceReady=false;
+let VOICE_LIVE=false,voiceReady=false,VLEVEL=0,VPULSE=0;
 const vf=document.createElement('iframe');
 vf.id='phrLive';vf.title='Phronesis';vf.allow='microphone; autoplay';vf.setAttribute('allowtransparency','true');
 vf.src='../?embed=1&face=off&v='+Date.now();
 slot.appendChild(vf);
+slot.style.pointerEvents='auto';slot.addEventListener('click',e=>{if(e.target===slot||e.target.id==='caption')wakeVoice();});
 function vsend(cmd){try{vf.contentWindow.postMessage({phr:'live-cmd',cmd:cmd},'*');}catch(e){}}
 function wakeVoice(){if(VOICE_LIVE){vsend('dismiss');return;}if(!voiceReady){toast('Phronesis is still waking up, sir.');return;}vsend('wake');setState('listening');showLine('Listening, sir.');}
+let MUTED=false;
+function toggleMute(){
+ const w=vf.contentWindow&&vf.contentWindow.__phrVoice;
+ if(!w){toast('He is not awake yet, sir.');return;}
+ MUTED=w.setMicMuted(!w.micMuted());body.classList.toggle('muted',MUTED);
+ $('#micBtn').setAttribute('aria-pressed',String(MUTED));
+ showLine(MUTED?'Muted, sir. He cannot hear you.':'Unmuted, sir.');
+ if(MUTED)setState('muted');else setState(VOICE_LIVE?'listening':'waiting');}
 window.PHR_LIVE={wake:()=>{if(!VOICE_LIVE)wakeVoice();},sleep:()=>vsend('sleep')};
 addEventListener('message',e=>{const d=e.data;if(!d||d.phr!=='live-state'||e.source!==vf.contentWindow)return;
  if(d.ready){voiceReady=true;if(new URLSearchParams(location.search).get('wake')==='1')wakeVoice();}
  if(d.live===true){VOICE_LIVE=true;body.classList.add('phr-live');setState('listening');showLine('Listening, sir.');}
  if(d.live===false&&VOICE_LIVE){VOICE_LIVE=false;body.classList.remove('phr-live');setState('waiting');showLine('Ready for your instruction, sir.');}
+ if(d.mode!==undefined){
+  VLEVEL=Math.max(0,Math.min(1,+d.level||0));
+  if(d.micMuted!==undefined&&d.micMuted!==MUTED){MUTED=!!d.micMuted;body.classList.toggle('muted',MUTED);$('#micBtn').setAttribute('aria-pressed',String(MUTED));}
+  if(mode==='command'&&!body.classList.contains('v-open')){
+   const want=d.mode==='speaking'?'speaking':d.mode==='muted'?'muted':d.mode==='listening'?'listening':null;
+   if(want&&state!==want&&state!=='thinking'&&state!=='working')setState(want);
+   if(!want&&VOICE_LIVE===false&&state!=='waiting'&&state!=='thinking'&&state!=='working')setState('waiting');}}
  if(d.brainMap!==undefined){const bc=$('#brainCount'),bn=$('#brainNote');const n=d.brainMap&&d.brainMap.length;
   if(bc)bc.textContent=n?(n+' notes'):'';if(bn)bn.textContent=n?'Connected. Lights up when he reads or saves a note.':'His notes live on your PC: open Phronesis there and they appear.';}
  if(d.brainPulse&&d.brainPulse.mode){const m=d.brainPulse.mode;if(m==='think'||m==='search')setState('thinking');}});
@@ -1305,7 +1327,9 @@ let last=performance.now(),fc=0;
 function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
  const tp=SP[state],ks=1-Math.exp(-dt*3.2);for(const k in o)o[k]+=(tp[k]-o[k])*ks;
  for(const k in E)E[k]+=(ET[k]-E[k])*(1-Math.exp(-dt*2.6));
- orbT+=dt*o.spd*(RM?.3:1);lvl+=((state==='listening'?.45+.2*Math.sin(T*3):0)-lvl)*(1-Math.exp(-dt*4));
+ VPULSE+=(VLEVEL-VPULSE)*(1-Math.exp(-dt*14));
+ orbT+=dt*o.spd*(1+VPULSE*1.5)*(RM?.3:1);
+ lvl+=(((state==='listening'?.3+.2*Math.sin(T*3):0)+VPULSE*1.25)-lvl)*(1-Math.exp(-dt*9));
  if(tp.rv>0){phi1+=dt*o.rv;phi2-=dt*o.rv;}else{const kk=1-Math.exp(-dt*2.4);phi1+=(Math.round(phi1/PI)*PI-phi1)*kk;phi2+=(Math.round(phi2/PI)*PI-phi2)*kk;}
  outerSpin+=dt*(.12+o.spd*.07);
  if(mode==='command'){const r=slot.getBoundingClientRect();camT.cx=r.left+r.width/2;camT.cy=r.top+r.height/2+10;
@@ -1322,13 +1346,9 @@ function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
  g.lineCap='round';
  for(let i=0;i<ST.length;i+=4){let d=ST[i+1]+sv*(.3+ST[i+2])*(.2+ST[i+1]*1.8);if(d>1.1){d=.03+rnd()*.08;ST[i]=rnd()*TAU;}ST[i+1]=d;
   const ux=Math.cos(ST[i]),uy=Math.sin(ST[i]),x=ocx+ux*d*mR,y=ocy+uy*d*mR;if(x<-5||x>W+5||y<-5||y>H+5)continue;
-  const len=1+(o.spd*4+1)*d*ST[i+2]*3;g.globalAlpha=sa*Math.min(1,d*4)*(.3+.7*ST[i+2])*(.55+.45*Math.sin(T*2.4+i));
-  g.strokeStyle=i%26===0?'#ffd58a':'#cfe2ff';g.lineWidth=ST[i+3];g.beginPath();g.moveTo(x,y);g.lineTo(x-ux*len,y-uy*len);g.stroke();}
+  g.globalAlpha=sa*Math.min(1,d*4)*(.25+.65*ST[i+2])*(.45+.55*Math.sin(T*1.3+i*1.7));
+  const ss=ST[i+3]*(.7+.5*ST[i+2]);g.drawImage(i%23===0?SG:SB,x-ss*2.1,y-ss*2.1,ss*4.2,ss*4.2);}
  g.globalAlpha=1;
- if(T>shoot.next){shoot.t0=T;shoot.next=T+5+rnd()*8;shoot.x=rnd()*W;shoot.y=rnd()*H*.5;shoot.a=.4+rnd()*.7;}
- {const t=(T-shoot.t0)/.9;if(t<1&&sa>.3&&!RM){const ca=Math.cos(shoot.a),sn=Math.sin(shoot.a),x=shoot.x+ca*t*W*.35,y=shoot.y+sn*t*W*.35,
-   gr=g.createLinearGradient(x,y,x-ca*130,y-sn*130);gr.addColorStop(0,'rgba(225,238,255,'+(1-t)+')');gr.addColorStop(1,'rgba(225,238,255,0)');
-   g.strokeStyle=gr;g.lineWidth=1.6;g.beginPath();g.moveTo(x,y);g.lineTo(x-ca*130,y-sn*130);g.stroke();}}
  if(E.ring>.02){const a=E.ring;g.save();g.translate(cam.cx,cam.cy);g.lineWidth=1;g.lineCap='butt';
   g.save();g.rotate(T*.04);g.setLineDash([2,9]);g.strokeStyle='rgba(120,170,255,'+a*.4+')';g.beginPath();g.arc(0,0,ringR*1.28,0,TAU);g.stroke();g.restore();
   g.save();g.rotate(-T*.06);g.setLineDash([ringR*.3,ringR*.16]);g.strokeStyle='rgba(214,163,73,'+a*.3+')';g.beginPath();g.arc(0,0,ringR*1.46,0,TAU);g.stroke();g.restore();g.setLineDash([]);
@@ -1372,7 +1392,7 @@ function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
   szm=(W<860?.8:1)*(mode==='world'?1.05:Math.max(.7,ringR/200));
  for(let i=0;i<NACT;i++){
   if(T>=P.hold[i]){
-   if(isOrb){if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+o.spk*.13*env*Math.sin(T*9-rf*8));
+   if(isOrb){if(i%5>=2){const rf=P.rf[i],rr=rf*o.rad*(1+(o.lis*lvl)*.5*Math.sin(5*P.th[i]+T*4)+(o.spk+VPULSE*1.6)*.17*env*Math.sin(T*9-rf*8));
      P.tx[i]=(P.ux[i]*cw+P.uz[i]*sw)*rr;P.ty[i]=P.uy[i]*rr;P.tz[i]=(-P.ux[i]*sw+P.uz[i]*cw)*rr;P.tc[i]=P.sd[i]<.74?0:1;P.ta[i]=.4+.6*P.sd[i];}
     else{const R=RB[i%NR],a=P.sd[i]*TAU+orbT*R.sp,sc=.8*o.rad*(1+o.spk*.1*env*Math.sin(T*9)),
       x=Math.cos(a)*sc+P.ux[i]*.03,y=R.amp*Math.sin(2*a+R.ph)*(1+o.lis*lvl*2)*sc+P.uy[i]*.03,z=Math.sin(a)*sc+P.uz[i]*.03,
@@ -1382,12 +1402,13 @@ function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;fc++;
   const tw=.72+.28*Math.sin(T*2.6+P.tw[i]*9);
   let al=P.a[i]*(z2<0?E.back:1)*(.62+.38*clamp((z2+1)/2,0,1))*tw;
   if(SURGE>0)al*=.62+SURGE*(.55+.75*Math.sin(T*1.5-x1*2.6-y2*1.1));
+  if(VPULSE>.02)al*=1+VPULSE*(1.5+1.1*Math.sin(T*16-rf2[i]*9));
   al*=E.orb;if(al<.03)continue;
   const sx=cam.cx+x1*S*p,sy=cam.cy-y2*S*p;if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;
   const s=P.sz[i]*p*szm*(.85+tw*.3);g.globalAlpha=al>1?1:al;g.drawImage(P.c[i]>.5?SG:SB,sx-s,sy-s,s*2,s*2);}
  g.globalAlpha=1;g.globalCompositeOperation='source-over';
 
- if(E.ring>.02&&E.orb>.02){const rs=1+(1-E.ring)*.8,A=E.ring*E.orb,wob=o.lis*.32*Math.sin(T*2.2);
+ if(E.ring>.02&&E.orb>.02){const rs=1+(1-E.ring)*.8+VPULSE*.045,A=E.ring*E.orb,wob=o.lis*.32*Math.sin(T*2.2);
   ring3(ringR*.69*rs,PI/4,phi1+wob,orbT*.5,Math.max(2.4,ringR*.02),A);
   ring3(ringR*.83*rs,-PI/4,phi2-wob,-orbT*.4,Math.max(2.8,ringR*.024),A);outerRing(ringR*rs,A);}
 
@@ -1424,7 +1445,7 @@ window.__hud={command,go,openFocus,openWorld,goCity:n=>goCity(CITIES.find(c=>c.n
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794625355';
+  var EH_VER = '1794626076';
   (function () {
     var born = Date.now();
     function check() {

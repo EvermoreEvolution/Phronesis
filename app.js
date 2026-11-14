@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1794625355';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1794626076';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -44,6 +44,15 @@
   var an = ctx.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = 0.2;
   out.connect(shelf); shelf.connect(comp); comp.connect(an); an.connect(ctx.destination);
   var td = new Float32Array(an.fftSize), fd = new Uint8Array(an.frequencyBinCount);
+  /* The Command page draws his orb from this: how loud he is while he speaks, and the mute switch.
+     Report only, plus a gain the mute button sets. Nothing about the conversation itself changes. */
+  var phrMicMuted = false;
+  window.__phrVoice = {
+    level: function () { an.getFloatTimeDomainData(td); var s = 0; for (var i = 0; i < td.length; i++) s += td[i] * td[i]; return Math.sqrt(s / td.length); },
+    micMuted: function () { return phrMicMuted; },
+    setMicMuted: function (on) { phrMicMuted = !!on; return phrMicMuted; }
+  };
+
   var playing = [], nextT = 0, outRate = 44100;
 
   function mouth() {
@@ -142,7 +151,7 @@
         micNode.port.onmessage = function (e) {
           micLevel = e.data.rms;
           if (micLevel > 0.03 && live) armIdle();
-          if (ws && ws.readyState === 1 && sending) ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(e.data.pcm)) }));
+          if (ws && ws.readyState === 1 && sending && !phrMicMuted) ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(e.data.pcm)) }));
         };
         L('mic on ' + ctx.sampleRate);
       });
@@ -493,6 +502,11 @@
       }
     });
     toHub({ ready: true, live: false });
+    setInterval(function () {
+      if (!EMBED) return;
+      var l = 0; try { l = window.__phrVoice.level(); } catch (e) {}
+      toHub({ mode: live ? (l > 0.012 ? 'speaking' : (phrMicMuted ? 'muted' : 'listening')) : 'off', level: Math.min(1, l * 9), micMuted: phrMicMuted });
+    }, 90);
   }
 
   window.PHR = { wake: wake, sleep: sleep, state: function () { return { live: live, sending: sending, ws: ws && ws.readyState, playing: playing.length, head: head && head.state, conv: convId }; } };
