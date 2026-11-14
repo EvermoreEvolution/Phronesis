@@ -11,9 +11,12 @@
   var T = {                           // everything he may want to feel different, saved on his machine
     gain: 1.5,                        // how far a small hand movement travels on screen
     box: 0.17,                        // the dead border of the camera view, so he need not reach the edges
-    smooth: 0.45,                     // 0 = raw and twitchy, 1 = heavy and laggy
+    smooth: 0.35,                     // 0 = raw and twitchy, 1 = heavy and laggy
     pinchOn: 0.45, pinchOff: 0.62,    // how closed a pinch counts, and how open it releases
     swipe: 1.6,                       // screens per second of palm movement that counts as a dismiss
+    tapDown: 0.74, tapUp: 0.86,       // how far the index must bend to count as a tap, and straighten to finish it
+    tapMs: 520,                       // a bend held longer than this is him lowering his hand, not tapping
+    tap: true,                        // point and tap to click; set false to use pinch only
     zoomGain: 2.6, zoomMax: 3.2,
     hold: 220                         // ms a pinch must last before it becomes a drag instead of a click
   };
@@ -58,7 +61,13 @@
     g.shadowBlur = 0;
   }
   function drawCursor(h) {
-    var x = h.cx, y = h.cy, r = h.pinch ? 9 : 15, k;
+    var x = h.cx, y = h.cy, r = h.pinch ? 9 : (h.tapping ? 10 : 15), k;
+    if (h.flash) {
+      var a = Math.max(0, Math.min(1, (performance.now() - h.flash) / 420));
+      if (a >= 1) h.flash = 0;
+      else { g.save(); g.globalAlpha = 1 - a; g.strokeStyle = '#ffd98c'; g.lineWidth = 2.4;
+        g.beginPath(); g.arc(x, y, Math.max(1, 12 + a * 44), 0, 6.2832); g.stroke(); g.restore(); }
+    }
     g.save(); g.globalCompositeOperation = 'lighter';
     var gr = g.createRadialGradient(x, y, 0, x, y, r * 2.6);
     gr.addColorStop(0, h.pinch ? 'rgba(255,230,170,.95)' : 'rgba(170,215,255,.85)');
@@ -172,6 +181,21 @@
       h.cx += (Math.max(2, Math.min(W - 2, tx)) - h.cx) * k;
       h.cy += (Math.max(2, Math.min(H - 2, ty)) - h.cy) * k;
 
+      /* Michael, Nov 14: point and tap. The index bending counts as a click; while it bends the cursor is
+         held still and the click lands where he was pointing, not where his fingertip dipped to. */
+      var ext = Math.hypot(h.pts[8].x - h.pts[5].x, h.pts[8].y - h.pts[5].y) / size;
+      h.extMax = Math.max(ext, (h.extMax || ext) * 0.985);
+      var curl = ext / Math.max(0.2, h.extMax);
+      if (T.tap && !h.pinch) {
+        if (!h.tapping && curl < T.tapDown) { h.tapping = true; h.tapAt = now; h.tx0 = h.hx; h.ty0 = h.hy; }
+        else if (h.tapping && curl > T.tapUp) {
+          h.tapping = false;
+          if (now - h.tapAt < T.tapMs) { h.flash = now; tap(h.tx0, h.ty0); }
+        } else if (h.tapping && now - h.tapAt > T.tapMs) { h.tapping = false; }
+      } else h.tapping = false;
+      if (!h.tapping) { h.hx = h.cx; h.hy = h.cy; }      // the last place he was really pointing
+      else { h.cx = h.tx0; h.cy = h.ty0; }               // hold the cursor still through the tap
+
       var d = Math.hypot(h.pts[4].x - h.pts[8].x, h.pts[4].y - h.pts[8].y) / size;
       var was = h.pinch;
       if (!h.pinch && d < T.pinchOn) h.pinch = true; else if (h.pinch && d > T.pinchOff) h.pinch = false;
@@ -201,16 +225,17 @@
     } else if (zoomPair) { zoomPair = null; }
 
     if (!list.length) say('Show me a hand');
+    else if (!hands.some(function (q) { return q.pinch || q.tapping; })) say(T.tap ? 'Point and tap, or pinch to hold' : 'Pinch to choose');
     lastT = now;
   }
 
   /* ---------- camera ---------- */
-  var slowRun = 0, lastDet = 0;
+  var slowRun = 0, lastDet = 0, gap = 33;
   function loop() {
     raf = requestAnimationFrame(loop);
     if (!on || !mark || video.readyState < 2) return;
     var now = performance.now();
-    if (now - lastDet < 33) return;            // 30 readings a second is plenty; the screen still draws at full rate
+    if (now - lastDet < gap) return;           // read as often as this machine can manage, no more
     lastDet = now;
     var t0 = performance.now(), res = null;
     try { res = mark.detectForVideo(video, now); } catch (e) { return; }
@@ -219,6 +244,7 @@
        Stand down rather than drag the whole page under with it. */
     if (cost > 320) { slowRun++; if (slowRun >= 6) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
     else slowRun = Math.max(0, slowRun - 1);
+    gap = cost > 55 ? 66 : cost > 28 ? 42 : 33;   // a slower machine reads fewer frames instead of lagging behind
     onFrame(res, now);
   }
 
@@ -246,7 +272,7 @@
       .then(function (m) {
         mark = m; on = true; starting = false; slowRun = 0; sizeCanvas();
         if (!raf) loop();
-        say('Show me a hand');
+        say(T.tap ? 'Point and tap, or pinch to hold' : 'Pinch to choose');
         return true;
       })
       .catch(function (e) {
