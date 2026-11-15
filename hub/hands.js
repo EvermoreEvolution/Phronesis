@@ -23,9 +23,10 @@
     swipe: 1.6,
     zoomGain: 2.6, zoomMax: 3.2,
     hold: 200,
-    numHands: 2,          // may drop to 1 for THIS session if the machine cannot keep up; never saved that way
+    numHands: 2,          // both hands, always. A slow machine reads fewer frames; it never gives up a hand.
     showHand: false,      // Michael, Nov 14: no skeleton. Just the points.
-    camW: 480, camH: 360  // a smaller picture is read faster and loses no accuracy: the model shrinks it anyway
+    camW: 320, camH: 240, // the model works at 192x192 inside, so a smaller picture costs less and loses nothing
+    minCut: 1.1, beta: 0.009, dCut: 1.2   // steadiness: still when his hand is still, quick when it moves
   };
   try { var sv = JSON.parse(localStorage.getItem('phrHandTune') || '{}'); delete sv.numHands; Object.assign(T, sv); } catch (e) {}
   function save() { try { var o = Object.assign({}, T); delete o.numHands; localStorage.setItem('phrHandTune', JSON.stringify(o)); } catch (e) {} }
@@ -37,6 +38,7 @@
   var video, cv, g, mark, raf = 0, on = false, starting = false;
   var hands = [], zoomPair = null, txt, dismissAt = 0, vision = null, fileset = null;
   var lastDet = 0, gap = 30, slowRun = 0, lastDraw = 0;
+  var stat = { cost: 0, reads: 0, frames: 0, since: 0, delegate: '?', hands: 0 };
   var D = document;
   function $(s) { return D.querySelector(s); }
   function hud() { return window.__hud || {}; }
@@ -44,13 +46,26 @@
 
   function sizeCanvas() {
     if (!on) { cv.width = cv.height = 1; return; }
-    var r = Math.min(1.3, window.devicePixelRatio || 1);
+    var r = 1;   // only soft points are drawn here, so extra pixels buy nothing
     cv.width = Math.round(innerWidth * r); cv.height = Math.round(innerHeight * r);
     g.setTransform(r, 0, 0, r, 0, 0);
   }
 
   /* ================= the hand of light ================= */
   function lerp(a, b, t) { return a + (b - a) * t; }
+  /* A camera reading wobbles a pixel or two even when his hand is perfectly still, and that wobble is what
+     makes a cursor feel broken. Plain averaging removes it but adds lag. This filter does both: it smooths
+     hard while his hand is still and barely at all while it is moving. */
+  function euro(st, x, dt) {
+    if (st.x == null) { st.x = x; st.dx = 0; return x; }
+    var ad = 1 / (1 + (1 / (2 * Math.PI * T.dCut)) / dt);
+    var dx = (x - st.x) / dt;
+    st.dx += ad * (dx - st.dx);
+    var cut = T.minCut + T.beta * Math.abs(st.dx);
+    var a = 1 / (1 + (1 / (2 * Math.PI * cut)) / dt);
+    st.x += a * (x - st.x);
+    return st.x;
+  }
   function drawHand(h) {
     var p = h.sm, i, j, f, w, s = h.scale / 80, hot = h.pinch || h.tapping;
     var core = hot ? 'rgba(255,236,190,' : 'rgba(214,238,255,';
@@ -198,8 +213,9 @@
       var tx = Math.max(2, Math.min(W - 2, (pts[8].x - W / 2) * T.gain + W / 2));
       var ty = Math.max(2, Math.min(H - 2, (pts[8].y - H / 2) * T.gain + H / 2));
       var dt = Math.max(0.008, (now - h.at) / 1000); h.at = now;
-      h.vx = (tx - (h.rawx == null ? tx : h.rawx)) / dt; h.vy = (ty - (h.rawy == null ? ty : h.rawy)) / dt;
-      h.rawx = tx; h.rawy = ty;
+      if (!h.fx) { h.fx = {}; h.fy = {}; }
+      var sx2 = euro(h.fx, tx, dt), sy2 = euro(h.fy, ty, dt);
+      h.vx = h.fx.dx; h.vy = h.fy.dx;
 
       /* a tap: the index bends like a mouse button. The straight length is remembered and bleeds away
          slowly in real seconds, so the frame rate cannot change how a tap feels. */
@@ -215,7 +231,7 @@
         } else if (h.tapping && now - h.tapAt > T.tapMs) { h.tapping = false; h.tapLock = true; }
       } else { h.tapping = false; h.tapLock = false; }
 
-      if (!h.tapping) { h.tgx = tx + h.vx * T.lead; h.tgy = ty + h.vy * T.lead; h.hx = h.cx; h.hy = h.cy; }
+      if (!h.tapping) { h.tgx = sx2 + h.vx * T.lead; h.tgy = sy2 + h.vy * T.lead; h.hx = h.cx; h.hy = h.cy; }
       else { h.tgx = h.tx0; h.tgy = h.ty0; }
       if (!isFinite(h.tgx) || !isFinite(h.tgy)) { h.tgx = W / 2; h.tgy = H / 2; }
 
@@ -235,7 +251,7 @@
 
   /* ================= drawn every screen frame, whatever the camera managed ================= */
   function paint(now) {
-    var dt = Math.min(0.05, (now - lastDraw) / 1000); lastDraw = now;
+    var dt = Math.min(0.05, (now - lastDraw) / 1000); lastDraw = now; stat.frames++;
     g.clearRect(0, 0, innerWidth, innerHeight);
     var k = 1 - Math.exp(-dt * T.follow), ks = 1 - Math.exp(-dt * 26), i, j;
     for (i = 0; i < hands.length; i++) {
@@ -274,11 +290,12 @@
       try { res = mark.detectForVideo(video, now); } catch (e) { res = null; }
       var cost = performance.now() - t0;
       if (res) measure(res, now);
-      gap = cost > 55 ? 60 : cost > 28 ? 40 : 30;
-      if (cost > 45 && T.numHands > 1) {                       // too slow for two: carry on with one
-        slowRun++;
-        if (slowRun > 25) { slowRun = 0; T.numHands = 1; rebuild(); say('One hand — your machine was struggling'); }
-      } else if (cost > 320) { slowRun += 8; if (slowRun > 40) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
+      /* A slow machine reads the camera less often. It never gives up a hand for it: he asked for both,
+         and losing one was far more annoying than a lower reading rate. */
+      gap = cost > 90 ? 100 : cost > 55 ? 70 : cost > 28 ? 45 : 30;
+      stat.cost = stat.cost ? stat.cost * 0.9 + cost * 0.1 : cost; stat.reads++;
+      stat.hands = Math.max(stat.hands, hands.length);
+      if (cost > 400) { slowRun += 8; if (slowRun > 60) { say('Too busy — hands off'); stop(); try { window.__handsBusy && window.__handsBusy(); } catch (x) {} return; } }
       else slowRun = Math.max(0, slowRun - 1);
     }
     paint(now);
@@ -288,7 +305,8 @@
     var opt = function (dl) { return { baseOptions: { modelAssetPath: MODEL, delegate: dl }, runningMode: 'VIDEO',
       numHands: T.numHands, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.45, minTrackingConfidence: 0.45 }; };
     return vision.HandLandmarker.createFromOptions(fileset, opt('GPU'))
-      .catch(function () { return vision.HandLandmarker.createFromOptions(fileset, opt('CPU')); });
+      .then(function (m) { stat.delegate = 'graphics card'; return m; })
+      .catch(function () { stat.delegate = 'processor'; return vision.HandLandmarker.createFromOptions(fileset, opt('CPU')); });
   }
   function rebuild() {
     var old = mark; mark = null;
@@ -308,6 +326,7 @@
       .then(function (fs) { fileset = fs; return makeMarker(); })
       .then(function (m) {
         mark = m; on = true; starting = false; slowRun = 0; lastDraw = performance.now();
+        stat.reads = 0; stat.frames = 0; stat.hands = 0; stat.since = performance.now();
         sizeCanvas(); if (!raf) loop(); say('Point and tap'); return true;
       })
       .catch(function (e) {
@@ -356,6 +375,12 @@
     isOn: function () { return on; },
     tune: function (o) { if (o) { Object.assign(T, o); save(); if (on && o.numHands) rebuild(); } return Object.assign({}, T); },
     _feed: function (frame, now) { var t = now == null ? performance.now() : now; measure(frame, t); paint(t); },
+    stats: function () {
+      var secs = Math.max(0.1, (performance.now() - stat.since) / 1000);
+      return { readsPerSecond: +(stat.reads / secs).toFixed(1), drawnPerSecond: +(stat.frames / secs).toFixed(1),
+               msPerReading: +stat.cost.toFixed(0), runningOn: stat.delegate, mostHandsSeen: stat.hands,
+               camera: T.camW + 'x' + T.camH, lookingFor: T.numHands };
+    },
     _state: function () { return hands.map(function (h) { return { cx: Math.round(h.cx), cy: Math.round(h.cy), pinch: h.pinch, tapping: h.tapping, mode: h.mode }; }); }
   };
 })();
