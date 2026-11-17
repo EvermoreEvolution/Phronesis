@@ -43,7 +43,9 @@ function makeSender(opts) {
     busy = true;
     const out = { sent: [], skipped: [], failed: [] };
     try {
-      const mail = (await store.get('meta', 'mail')) || {};
+      // the hub's meta/mail wins; the host's settings fill any brand it does not hold
+      const mail = Object.assign({}, opts.mailDefaults || {}, (await store.get('meta', 'mail')) || {});
+      for (const k of Object.keys(opts.mailDefaults || {})) if (!String(mail[k] || '').trim()) mail[k] = opts.mailDefaults[k];
       const queued = (await store.list('commands'))
         .filter(function (r) { return r.data && r.data.type === 'send' && r.data.status === 'queued'; })
         .sort(function (a, b) { return Number(a.data.createdAt || 0) - Number(b.data.createdAt || 0); });

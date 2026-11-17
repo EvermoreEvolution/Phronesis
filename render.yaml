@@ -19,6 +19,10 @@ services:
         sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
+      - key: MAIL_FROM_VISUALS
+        sync: false
+      - key: MAIL_FROM_MEV
+        sync: false
       - key: FIRE_SECRET
         sync: false
       - key: SENDER_ON

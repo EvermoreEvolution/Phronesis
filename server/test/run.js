@@ -90,6 +90,12 @@ async function refused(name, n, c, mail, wantWhy) {
     assert.strictEqual(p.sent.length, 0);
     assert.strictEqual(h.db.commands.c1.status, 'queued');
   });
+  await t('a brand missing from the hub record uses the address set on the host', async () => {
+    const h = hub(seed(need({ unit: 'visuals' }), cmd(), { evolution: 'e@x.com', visuals: '' })), p = post();
+    const r = await makeSender({ store: h, transport: p, mailDefaults: { visuals: 'vis@example.com' } }).runOnce();
+    assert.strictEqual(r.sent.length, 1);
+    assert.ok(p.sent[0].from.includes('vis@example.com') && p.sent[0].from.includes('Evermore Visuals'));
+  });
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

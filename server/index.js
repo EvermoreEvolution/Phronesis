@@ -25,7 +25,8 @@ let sender = null, lastRun = null;
 if (ready && mailReady) {
   const nodemailer = require('nodemailer');
   const transport = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: ENV.GMAIL_USER, pass: ENV.GMAIL_APP_PASSWORD } });
-  sender = makeSender({ store: makeStore(ENV.SUPABASE_URL, ENV.SUPABASE_SERVICE_KEY), transport: transport, log: log });
+  sender = makeSender({ store: makeStore(ENV.SUPABASE_URL, ENV.SUPABASE_SERVICE_KEY), transport: transport, log: log,
+    mailDefaults: { evolution: ENV.MAIL_FROM_EVOLUTION || ENV.GMAIL_USER || '', visuals: ENV.MAIL_FROM_VISUALS || '', mev: ENV.MAIL_FROM_MEV || '' } });
 }
 async function tick(why) {
   if (!sender || !senderOn) return null;
