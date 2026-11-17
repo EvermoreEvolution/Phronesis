@@ -1953,7 +1953,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794794065';
+  var EH_VER = '1794888204';
   (function () {
     var born = Date.now();
     function check() {
@@ -2076,6 +2076,35 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
       });
     });
   };
+  /* ---------- SENDING (Michael's rule, Nov 12, confirmed): approving a draft does NOT send it.
+     Phronesis sends ONLY a draft Michael has named, after reading it back, one at a time.
+     Everything below is a gate. If any of it is unsure, nothing is queued and he is told why. ---------- */
+  window.EH_QUEUE_SEND = function (needId, words, via) {
+    needId = String(needId || ''); if (!/^[A-Za-z0-9_.:-]+$/.test(needId)) return Promise.reject(new Error('I could not tell which draft that was, sir. Name it and I will read it back.'));
+    var said = String(words || '').trim(); if (said.length < 2) return Promise.reject(new Error('I will not send anything without your word on that exact draft, sir.'));
+    var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.reject(new Error('Sign in to the hub first, sir.'));
+    return sb.from('docs').select('id,data').eq('coll', 'needs').eq('id', needId).maybeSingle().then(function (r) {
+      var n = r.data && r.data.data; if (!n) throw new Error('That draft is not in the hub.');
+      if (n.kind !== 'draft') throw new Error('That item is not a draft, sir, so there is nothing to send.');
+      if (n.status !== 'approved') throw new Error('That one is ' + (n.status || 'not approved') + ', sir. It has to be approved before it can go.');
+      var ch = String(n.channel || '').toLowerCase();
+      if (ch !== 'email') throw new Error('That one is a ' + (ch || 'message') + ', sir, not an email. I can only send email; the texts, the calls and the walk-ins are yours.');
+      var to = String(n.email || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)) throw new Error('That draft has no proper address on it, sir, so I will not guess one.');
+      if (n.sendState === 'sent') throw new Error('That one has already gone, sir' + (n.sentAt ? ', at ' + new Date(n.sentAt).toLocaleString() : '') + '.');
+      if (n.sendState === 'queued' || n.sendState === 'sending') throw new Error('That one is already queued to go, sir. Nothing is sent twice.');
+      var body = String(n.preview || '').trim(); if (body.length < 20) throw new Error('That draft has no text on it, sir. I will not send an empty message.');
+      var now = Date.now(), cid = 's' + now.toString(36);
+      return window.claude.use('db').then(function (db) {
+        return db.doc('commands/' + cid).set({ type: 'send', channel: 'email', needId: needId, to: to,
+            subject: String(n.subject || '').slice(0, 200), gmailDraftId: n.gmailDraftId || null,
+            words: said.slice(0, 300), via: via || 'voice', agent: 'sender', from: 'michael',
+            createdAt: now, createdBy: 'michael', status: 'queued', bridge: 'waiting' })
+          .then(function () { return sb.rpc('doc_merge', { c: 'needs', i: needId, d: { sendState: 'queued', sendQueuedAt: now, sendWords: said.slice(0, 300), sendVia: via === 'voice' ? 'voice, read back and named' : 'live hub tap' } }); })
+          .then(function () { return 'QUEUED TO SEND to ' + to + ' (' + (n.subject || 'no subject') + '). It has NOT gone yet: the sender collects it within the hour, and whats_new will show it once it has actually left.'; });
+      });
+    });
+  };
   function waitingList() {
     var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.reject(new Error('Sign in to the hub first, sir.'));
     return sb.from('docs').select('id,data').eq('coll', 'needs').eq('data->>status', 'pending').limit(40).then(function (r) {
@@ -2086,7 +2115,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
   }
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
-    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : d.name === 'whats_new' ? window.EH_WHATS_NEW() : Promise.reject(new Error('unknown tool'));
+    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : d.name === 'whats_new' ? window.EH_WHATS_NEW() : d.name === 'send_draft' ? window.EH_QUEUE_SEND(d.args && d.args.item_id, d.args && d.args.words, 'voice') : Promise.reject(new Error('unknown tool'));
     job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
   });
   addEventListener('message', function (e) {
