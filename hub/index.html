@@ -1953,7 +1953,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794888204';
+  var EH_VER = '1794888300';
   (function () {
     var born = Date.now();
     function check() {
@@ -2101,7 +2101,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
             words: said.slice(0, 300), via: via || 'voice', agent: 'sender', from: 'michael',
             createdAt: now, createdBy: 'michael', status: 'queued', bridge: 'waiting' })
           .then(function () { return sb.rpc('doc_merge', { c: 'needs', i: needId, d: { sendState: 'queued', sendQueuedAt: now, sendWords: said.slice(0, 300), sendVia: via === 'voice' ? 'voice, read back and named' : 'live hub tap' } }); })
-          .then(function () { return 'QUEUED TO SEND to ' + to + ' (' + (n.subject || 'no subject') + '). It has NOT gone yet: the sender collects it within the hour, and whats_new will show it once it has actually left.'; });
+          .then(function () { return 'QUEUED TO SEND to ' + to + ' (' + (n.subject || 'no subject') + '). It has NOT gone yet, and I must be straight with you, sir: the sender that actually puts it in the post is built but not yet switched on, because that needs your approval in a chat with Claude. Nothing will leave until it is.'; });
       });
     });
   };
