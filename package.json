@@ -1,0 +1,16 @@
+{
+  "name": "phronesis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phronesis: the hub, the sender and the trigger, on Mr. Evermore's own server",
+  "main": "server/index.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node server/test/run.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16"
+  }
+}

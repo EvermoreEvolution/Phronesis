@@ -1,0 +1,25 @@
+# Render reads this file when the repo is connected. Secrets are NOT here:
+# Mr. Evermore sets them himself in the Render dashboard (Environment).
+services:
+  - type: web
+    name: phronesis
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: FIRE_SECRET
+        sync: false
+      - key: SENDER_ON
+        value: "false"
