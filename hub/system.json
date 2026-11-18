@@ -1,7 +1,7 @@
 {
- "paused": true,
- "since": "Sunday, November 8",
+ "paused": false,
+ "since": "Monday, November 16",
  "by": "Mr. Evermore",
- "reason": "settings corrections and the rebuild",
- "updated": "2026-11-12"
+ "reason": "unpaused on his order. The 13 agents are enabled in the records, but their own scheduled tasks are still switched off, so nothing runs until he switches those on.",
+ "updated": "2026-11-18"
 }

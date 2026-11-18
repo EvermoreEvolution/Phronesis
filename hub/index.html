@@ -172,6 +172,14 @@ svg.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:var(--gold);stroke-wid
   background-image:radial-gradient(1.1px 1.1px at 18% 24%,rgba(226,238,255,.9),transparent),radial-gradient(1px 1px at 72% 12%,rgba(200,220,255,.75),transparent),radial-gradient(1.3px 1.3px at 41% 68%,rgba(255,238,205,.8),transparent),radial-gradient(.9px .9px at 86% 54%,rgba(210,228,255,.7),transparent),radial-gradient(1.1px 1.1px at 9% 77%,rgba(236,244,255,.75),transparent),radial-gradient(1px 1px at 58% 88%,rgba(255,232,190,.6),transparent),radial-gradient(.9px .9px at 32% 41%,rgba(206,226,255,.6),transparent),radial-gradient(1.2px 1.2px at 94% 30%,rgba(232,242,255,.7),transparent);
   background-size:340px 300px,420px 380px,300px 280px,500px 460px,380px 340px,460px 420px,260px 240px,520px 480px;animation:tw 7s ease-in-out infinite alternate}
 @keyframes tw{from{opacity:.55}to{opacity:1}}
+#dust3,#dust4{position:fixed;inset:-12%;z-index:0;pointer-events:none;background-repeat:repeat;will-change:transform}
+#dust3{opacity:.75;background-image:radial-gradient(1.2px 1.2px at 12% 18%,rgba(255,226,170,.95),transparent),radial-gradient(1px 1px at 63% 9%,rgba(214,230,255,.85),transparent),radial-gradient(1.5px 1.5px at 37% 55%,rgba(255,214,140,.9),transparent),radial-gradient(.9px .9px at 82% 41%,rgba(226,238,255,.8),transparent),radial-gradient(1.1px 1.1px at 24% 86%,rgba(255,236,200,.85),transparent),radial-gradient(1.3px 1.3px at 71% 73%,rgba(190,214,255,.8),transparent),radial-gradient(.8px .8px at 49% 31%,rgba(255,255,255,.7),transparent),radial-gradient(1px 1px at 93% 92%,rgba(255,220,160,.8),transparent);
+  background-size:210px 190px,250px 230px,180px 200px,290px 260px,230px 210px,270px 250px,150px 140px,310px 290px;animation:mote1 90s linear infinite}
+#dust4{opacity:.55;background-image:radial-gradient(1.8px 1.8px at 30% 40%,rgba(255,206,128,.9),transparent),radial-gradient(1.4px 1.4px at 78% 22%,rgba(170,204,255,.85),transparent),radial-gradient(2px 2px at 55% 80%,rgba(255,224,170,.7),transparent),radial-gradient(1.2px 1.2px at 8% 64%,rgba(220,234,255,.8),transparent);
+  background-size:330px 310px,390px 350px,470px 430px,280px 300px;animation:mote2 140s linear infinite}
+@keyframes mote1{from{transform:translate3d(0,0,0)}to{transform:translate3d(-210px,-190px,0)}}
+@keyframes mote2{from{transform:translate3d(0,0,0)}to{transform:translate3d(330px,-310px,0)}}
+@media (prefers-reduced-motion:reduce){#dust3,#dust4{animation:none}}
 #dust2{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;background-repeat:repeat;
   background-image:radial-gradient(1px 1px at 50% 50%,rgba(255,255,255,.55),transparent);background-size:170px 160px;animation:tw2 11s ease-in-out infinite alternate}
 @keyframes tw2{from{opacity:.25;transform:translateY(0)}to{opacity:.6;transform:translateY(-10px)}}
@@ -1002,7 +1010,7 @@ body.v-open .voice{display:none}
 <g fill="#ffdf9e"><path d="M20.4 16.2h2.3v15.6h-2.3z"/><path d="M22.1 19.3c3.9 0 6.3 1.6 6.3 4.6s-2.4 4.7-6.3 4.7h-1.3v-2.1h1.2c2.4 0 3.8-.9 3.8-2.6s-1.4-2.5-3.8-2.5h-1.2v-2.1z"/><circle cx="24" cy="8.3" r="1.6"/><circle cx="24" cy="39.7" r="1.6"/></g></symbol>
 </defs></svg>
 
-<div class="sky" id="sky1" aria-hidden="true"></div><div class="sky" id="sky2" aria-hidden="true"></div><div id="mist" aria-hidden="true"></div><div id="dust" aria-hidden="true"></div><div id="dust2" aria-hidden="true"></div>
+<div class="sky" id="sky1" aria-hidden="true"></div><div class="sky" id="sky2" aria-hidden="true"></div><div id="mist" aria-hidden="true"></div><div id="dust" aria-hidden="true"></div><div id="dust3" aria-hidden="true"></div><div id="dust4" aria-hidden="true"></div><div id="dust2" aria-hidden="true"></div>
 <canvas id="stage" aria-hidden="true"></canvas>
 
 <div class="app">
@@ -1953,7 +1961,15 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
 (function(){
   function nyFmt(t) { try { return new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' New York'; } catch (e) { return new Date(t).toString(); } }
   function ehAgo(t) { var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' minutes ago' : m < 2880 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; }
-  var EH_VER = '1794958471';
+  /* Nov 18: these three were left behind when the HUD replaced the old Command page, so system_status, task_status
+     and whats_new threw "ehSys is not defined" and the hub never answered him. Restored exactly as they were. */
+  function ehSys() { return fetch('system.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  function ehOne(coll, id) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve(null);
+    return sb.from('docs').select('id,data,updated_at').eq('coll', coll).eq('id', id).maybeSingle().then(function (r) { return r.data || null; }, function () { return null; }); }
+  function ehNewest(coll, n) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve([]);
+    return sb.from('docs').select('id,data,updated_at').eq('coll', coll).order('updated_at', { ascending: false }).limit(n || 1).then(function (r) { return r.data || []; }, function () { return []; }); }
+  function ehNewsCard() {}   // the old page's pop-up card; the HUD shows news in its own panels
+  var EH_VER = '1795021427';
   (function () {
     var born = Date.now();
     function check() {
@@ -2115,7 +2131,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
   }
   addEventListener('message', function (e) {
     var d = e.data, f = document.getElementById('phrLive'); if (!d || d.phr !== 'live-tool' || !f || e.source !== f.contentWindow) return;
-    var job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : d.name === 'whats_new' ? window.EH_WHATS_NEW() : d.name === 'send_draft' ? window.EH_QUEUE_SEND(d.args && d.args.item_id, d.args && d.args.words, 'voice') : Promise.reject(new Error('unknown tool'));
+    var job; try { job = d.name === 'list_waiting' ? waitingList() : d.name === 'approve_item' ? window.EH_QUEUE_APPROVE(d.args && d.args.item_id, d.args && d.args.words, 'voice') : d.name === 'task_status' ? window.EH_TASK_STATUS(d.args && d.args.task_id) : d.name === 'system_status' ? window.EH_SYSTEM_STATUS() : d.name === 'open_screen' ? window.EH_OPEN_SCREEN(d.args && d.args.screen) : d.name === 'whats_new' ? window.EH_WHATS_NEW() : d.name === 'send_draft' ? window.EH_QUEUE_SEND(d.args && d.args.item_id, d.args && d.args.words, 'voice') : Promise.reject(new Error('unknown tool')); } catch (x) { job = Promise.reject(new Error('that part of the hub is broken (' + String(x && x.message || x).slice(0, 80) + '). Tell Mr. Evermore plainly and do not try it again.')); }
     job.then(function (m) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: true, msg: m }, '*'); }, function (er) { f.contentWindow.postMessage({ phr: 'live-tool-ack', id: d.id, ok: false, msg: String((er && er.message) || er) }, '*'); });
   });
   addEventListener('message', function (e) {

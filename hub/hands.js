@@ -161,10 +161,23 @@
      the same as a tap — no dragging boards about. */
   function beginDrag(h) {
     var x = h.cx, y = h.cy;
-    if (overOrb(x, y)) { h.mode = 'orb'; h.target = $('#slot') || D.body; ev(h.target, 'pointerdown', x, y); say('Turning the world'); return; }
+    if (overOrb(x, y)) {
+      /* Michael, Nov 18: the hands work on Phronesis too, not only the world. When the world is showing, a
+         pinch turns it. When Phronesis himself is showing, a pinch held and moved up brings him closer and
+         down sends him back. Two hands pulled apart still zooms either. */
+      if (!onWorld()) { h.mode = 'zoom'; h.target = null; h.zy = y; h.zb = (hud().orbZoomNow && hud().orbZoomNow()) || 1; say('Hold the pinch · up to come closer'); return; }
+      h.mode = 'orb'; h.target = $('#slot') || D.body; ev(h.target, 'pointerdown', x, y); say('Turning the world'); return;
+    }
     h.mode = 'done'; h.target = null; h.flash = performance.now(); tap(x, y);
   }
+  function onWorld() { return D.body.classList.contains('world') || D.body.classList.contains('wfull') || !!(hud().rest && hud().rest()); }
   function moveDrag(h) {
+    if (h.mode === 'zoom') {
+      var z = Math.max(1, Math.min(T.zoomMax, h.zb + (h.zy - h.cy) / innerHeight * T.zoomGain * 2.2));
+      if (hud().orbZoom) hud().orbZoom(z);
+      say(z > 1.06 ? 'Phronesis · ' + z.toFixed(1) + '×' : 'Move up to come closer');
+      return;
+    }
     if (h.mode === 'done' || !h.target) return;
     ev(h.target, 'pointermove', h.cx, h.cy); ev(h.target, 'mousemove', h.cx, h.cy);
   }
