@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1795287874';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1795319818';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -149,7 +149,7 @@
         micSrc = ctx.createMediaStreamSource(stream); micNode = new AudioWorkletNode(ctx, 'phr-mic');
         var sink = ctx.createGain(); sink.gain.value = 0; micSrc.connect(micNode); micNode.connect(sink); sink.connect(ctx.destination);
         micNode.port.onmessage = function (e) {
-          micLevel = e.data.rms;
+          micLevel = e.data.rms; DG.chunks++; if (micLevel > DG.peak) DG.peak = micLevel;
           if (micLevel > 0.03 && live) armIdle();
           if (ws && ws.readyState === 1 && sending && !phrMicMuted) ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(e.data.pcm)) }));
         };
@@ -178,7 +178,7 @@
   setInterval(function () {
     if (!live || !sending || dismissing) return;
     if (busyNow()) { lastAct = Date.now(); return; }
-    if (Date.now() - lastAct >= IDLE_MS) { L('idle sleep after ' + Math.round((Date.now() - lastAct) / 1000) + ' s of quiet'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); }
+    if (Date.now() - lastAct >= IDLE_MS) { L('idle sleep after ' + Math.round((Date.now() - lastAct) / 1000) + ' s of quiet (' + dgLine() + ')'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); }
   }, 500);
 
   var GREETS = {
@@ -229,6 +229,10 @@
   setTimeout(loadF, 600);
   setInterval(function () { loadH(period()); }, 15 * 60000);
   var greetLine = null, followLine = null, gotVoice = false;
+  /* Nov 21: he woke, said nothing and went back to sleep, and the log could not say why. These count what actually
+     flowed in a session - sound from his mic, sound from the agent - so the next time it can. */
+  var DG = { chunks: 0, peak: 0, voice: 0 };
+  function dgLine() { return 'audio engine ' + ctx.state + ', mic chunks ' + DG.chunks + ', mic peak ' + DG.peak.toFixed(3) + ', agent audio ' + DG.voice + (phrMicMuted ? ', MIC MUTED' : ''); }
   function connect() {
     return new Promise(function (res, rej) {
       var w = new WebSocket(WS_URL); ws = w; var opened = false; wsState = 'connecting';
@@ -252,7 +256,7 @@
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
-        var a = d.audio_event || {}; if (a.audio_base_64) { gotVoice = true; awaitingT = 0; lastAct = Date.now(); } if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
+        var a = d.audio_event || {}; if (a.audio_base_64) { if (!DG.voice) L('agent started speaking'); DG.voice++; gotVoice = true; awaitingT = 0; lastAct = Date.now(); } if (a.audio_base_64 && dismissing) saidBye = true; if (a.audio_base_64) { if (AV.on) faceAudio(a.audio_base_64, Math.floor(a.audio_base_64.length * 3 / 4)); else playBuffer(pcmToBuffer(b64ToBytes(a.audio_base_64), outRate), DEEP); } break;
       case 'agent_response':
         say((d.agent_response_event || {}).agent_response || ''); break;
       case 'agent_response_correction':
@@ -304,10 +308,13 @@
     /* Michael, Nov 15: this fired on "it's not supposed to start the hand without me triggering it", because
        \bon\b matched "on its own". It now needs either his name beside the word, or a short standalone phrase
        of four words or fewer - so "hands please" works and a sentence that merely mentions hands does not. */
-    var hName = /\b(phronesis|furnaces|for nieces|frenzies)\b/.test(t);
+    var hName = /\b(phronesis|fronesis|phronesus|furnaces|for nieces|frenzies)\b/.test(t);
     var hShort = t.trim().split(/\s+/).length <= 4;
     if (/\bhands?\b/.test(t) && /\b(off|away|down)\b/.test(t) && (hName || hShort)) { L('hands off (said in conversation)'); toHub({ hands: false }); return; }
-    if (/\bhands?\b/.test(t) && (hName || (hShort && /\b(please|on|now|up)\b/.test(t)))
+    /* Michael, Nov 21: "Phronesis, let's use my hands" has to work. The live voice does not always spell his name the
+       way this list expects, so the plain request (use / turn on / give me ... my hands, eight words or fewer) counts too. */
+    var hAsk = /\b(use|using|turn on|switch on|activate|enable|give me|start)\s+(?:my |the |your )?hands?\b/.test(t) && t.trim().split(/\s+/).length <= 8;
+    if (/\bhands?\b/.test(t) && (hName || hAsk || (hShort && /\b(please|on|now|up)\b/.test(t)))
         && !/\b(off|away|stop|hide|close|down)\b/.test(t)) { L('hands on (said in conversation)'); toHub({ hands: true }); return; }
     var m = /^\s*(?:please\s+|phronesis\s+|can you\s+|could you\s+)*(?:show(?: me)?|open(?: up)?|pull up|bring up|go to|take me to|let me see|display)\s+(?:me\s+)?(?:the\s+|my\s+)?(.{2,40})$/.exec(t);
     if (!m || m[1].trim().split(/\s+/).length > 4 || /\b(why|how|when|whether|if|did|does|do|compared|versus|about|that|which)\b/.test(m[1])) return;   // only a short, plain command; anything longer is left to him to understand
@@ -437,7 +444,9 @@
     L('wake (' + Math.round(performance.now()) + ' ms)');
     live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); toHub({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
-    ctx.resume();
+    DG.chunks = 0; DG.peak = 0; DG.voice = 0;
+    try { ctx.resume().then(function () { if (ctx.state !== 'running') L('audio engine is ' + ctx.state + ' after waking'); }, function (e) { L('audio engine would not start: ' + (e && e.name)); }); } catch (e) {}
+    setTimeout(function () { if (!live) return; if (ctx.state !== 'running' || !DG.chunks) { L('no sound flowing 2.5 s after waking (' + dgLine() + '): starting the audio engine again'); try { ctx.resume(); } catch (e) {} } }, 2500);
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
     var wsP = connect();
     markGreet();

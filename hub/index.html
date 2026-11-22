@@ -1969,7 +1969,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
   function ehNewest(coll, n) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve([]);
     return sb.from('docs').select('id,data,updated_at').eq('coll', coll).order('updated_at', { ascending: false }).limit(n || 1).then(function (r) { return r.data || []; }, function () { return []; }); }
   function ehNewsCard() {}   // the old page's pop-up card; the HUD shows news in its own panels
-  var EH_VER = '1795287874';
+  var EH_VER = '1795319818';
   (function () {
     var born = Date.now();
     function check() {
