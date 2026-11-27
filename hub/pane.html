@@ -2935,10 +2935,26 @@ function hubMerge(path, data) {
   return hubQueue(path, function () { return HUB.db.doc(path).update(data).catch(function (e) { if (e && e.code === 'invalid_argument') return HUB.db.doc(path).set(data); throw e; }); });
 }
 function writeFail(e, what) { var c = e && (e.code || e.message) || 'error'; toast('Could not ' + what + ' (' + c + '). Nothing was changed in the hub.', 'problem', 'Hub'); }
+/* Nov 27: the sign-off follows the business the draft is for (Visuals drafts were being signed Evermore Evolution),
+   and the brand address is the one he chooses as From in Gmail (send-as on evermoreevolution@gmail.com). */
+var BRAND_MAIL = { evolution: ['Evermore Evolution', 'evermoreevolution@gmail.com'], visuals: ['Evermore Visuals', 'evermoresvisuals@gmail.com'], mev: ['Filmed by Mev', 'filmedbymev@gmail.com'] };
+var openWait = {};
+window.addEventListener('message', function (e) { var d = e.data; if (d && d.phr === 'open-url-ack' && openWait[d.id]) { openWait[d.id](d.ok); delete openWait[d.id]; } });
+function gmailCompose(n, subject, body, brand) {
+  var url = 'https://mail.google.com/mail/u/evermoreevolution@gmail.com/?view=cm&fs=1&tf=1&to=' + encodeURIComponent(n.email) + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  var id = 'g' + Date.now().toString(36), done = false;
+  var fallback = function () { if (done) return; done = true; var w = null; try { w = window.open(url, '_blank', 'noopener'); } catch (x) {} if (!w) toast('Could not open Gmail from here, sir. Email on file: ' + n.email, 'problem', 'Hub'); };
+  openWait[id] = function (ok) { if (done) return; if (ok) { done = true; } else fallback(); };
+  try { parent.postMessage({ phr: 'open-url', url: url, id: id }, '*'); } catch (x) {}
+  setTimeout(function () { if (openWait[id]) { delete openWait[id]; fallback(); } }, 4000);
+  toast('Opening it in Gmail, sir. Choose From: ' + brand[1] + ', read it over, then press Send yourself.', 'info', aname(n.a));
+}
 function gmailDraft(n) {
-  if (!HUB.mcp) { toast('Gmail is not reachable from this view, sir. Open the page in Claude as its owner.', 'info', 'Hub'); return; }
+  if (!n.email) { toast('There is no email on file for this lead, sir; text it from your phone.', 'info', 'Hub'); return; }
   var lead = (HUBX.leads || {})[n.lead] || {}, biz = keep(lead.business) || 'your business';
-  var pv = keep(n.prev), body = /Michael Evermore\s*\n[^\n]*Evermore Evolution/.test(pv) ? pv : pv + '\n\nMichael Evermore\nEvermore Evolution, Worcester MA\n(540) 762-5737';
+  var brand = BRAND_MAIL[n.unit || keep(lead.unit)] || BRAND_MAIL.evolution;
+  var pv = keep(n.prev), body = /Michael Evermore/.test(pv.slice(-220)) ? pv : pv + '\n\nMichael Evermore\n' + brand[0] + ', Worcester MA\n(540) 762-5737';
+  if (!HUB.mcp) { gmailCompose(n, keep(n.subject) || ('A website idea for ' + biz), body, brand); return; }
   toast('Saving to your Gmail drafts…', 'info', aname(n.a));
   HUB.mcp.callTool('Gmail', 'create_draft', { to: [n.email], subject: keep(n.subject) || ('A website idea for ' + biz), body: body }).then(function (r) {
     var pl = r && (r.payload || r), id = pl && (pl.id || (pl.draft && pl.draft.id)) || 'ok';

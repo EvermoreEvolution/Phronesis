@@ -1589,6 +1589,11 @@ let warp0=-9,focusHTML='',paneLoaded=false,paneReady=false;
 const paneEl=$('#pane');
 function paneSend(o){if(!paneLoaded)return;try{paneEl.contentWindow.postMessage(Object.assign({phr:'pane'},o),'*');}catch(e){}}
 function paneLoad(view){if(paneLoaded)return;paneLoaded=true;paneEl.src='pane.html?v='+Math.floor(Date.now()/3600000)+(view?'&view='+view:'');}
+/* Nov 27: the lead board's Gmail button. The board cannot reach his Gmail from here, so the voice frame asks the PC
+   listener to open a ready-written Gmail compose window in his own Chrome. He chooses From and presses Send himself. */
+addEventListener('message',e=>{const d=e.data;if(!d||e.source!==paneEl.contentWindow)return;
+ if(d.phr==='open-url'&&/^https:\/\/mail\.google\.com\//.test(String(d.url||''))){try{vf.contentWindow.postMessage({phr:'live-cmd',cmd:'open-url',url:String(d.url),id:d.id},'*');}catch(x){}}});
+addEventListener('message',e=>{const d=e.data;if(!d||d.phr!=='open-url-ack'||e.source!==vf.contentWindow)return;try{paneEl.contentWindow.postMessage(d,'*');}catch(x){}});
 addEventListener('message',e=>{const d=e.data;if(!d||d.phr!=='pane-ready'||e.source!==paneEl.contentWindow)return;
  if(!paneReady){paneReady=true;$('#paneWait').hidden=true;}
  const k=$('#focus').dataset.k;if(body.classList.contains('v-open')&&PANE[k]&&!paneEl._sent){paneEl._sent=1;paneSend({view:k,shown:true});}});
@@ -1969,7 +1974,7 @@ window.__hud={dbg:()=>({NACT,N,ng:LANDG.length/3,E:Object.assign({},E),form,land
   function ehNewest(coll, n) { var sb = window.HUBDB && window.HUBDB.client; if (!sb) return Promise.resolve([]);
     return sb.from('docs').select('id,data,updated_at').eq('coll', coll).order('updated_at', { ascending: false }).limit(n || 1).then(function (r) { return r.data || []; }, function () { return []; }); }
   function ehNewsCard() {}   // the old page's pop-up card; the HUD shows news in its own panels
-  var EH_VER = '1795765195';
+  var EH_VER = '1795765841';
   (function () {
     var born = Date.now();
     function check() {

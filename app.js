@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1795765195';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1795765841';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -178,7 +178,17 @@
   setInterval(function () {
     if (!live || !sending || dismissing) return;
     if (busyNow()) { lastAct = Date.now(); return; }
-    if (Date.now() - lastAct >= IDLE_MS) { L('idle sleep after ' + Math.round((Date.now() - lastAct) / 1000) + ' s of quiet (' + dgLine() + ')'); sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true); }
+    if (Date.now() - lastAct >= IDLE_MS) {
+      L('idle sleep after ' + Math.round((Date.now() - lastAct) / 1000) + ' s of quiet (' + dgLine() + ')');
+      /* Michael, Nov 27: "it didn't say right you are sir or very well sir, it just switched to the earth." Going quiet
+         used to put him straight to rest with no word. Now he signs off in his recorded voice first, then rests. */
+      var bye = REC[NEXT.bye];
+      if (bye && !saidBye) {
+        saidBye = true; dismissing = true; sending = false;
+        if (ws) { var w0 = ws; ws = null; try { w0.close(1000); } catch (e) {} }
+        L('recorded sign-off (resting after quiet)'); say(lineText(NEXT.bye)); playBuffer(bye, 1);
+      } else sleep('Resting. Say "Hello", "Good day" or "Splendid day, Phronesis", or tap.', true);
+    }
   }, 500);
 
   var GREETS = {
@@ -232,6 +242,8 @@
   /* Nov 21: he woke, said nothing and went back to sleep, and the log could not say why. These count what actually
      flowed in a session - sound from his mic, sound from the agent - so the next time it can. */
   var DG = { chunks: 0, peak: 0, voice: 0 };
+  /* Nov 27: the hub vanished mid-conversation with nothing in the log. Say so on the way out, when the page gets the chance. */
+  window.addEventListener('pagehide', function () { try { L('page closing' + (live ? ' WHILE LIVE (' + dgLine() + ')' : '')); } catch (e) {} });
   function dgLine() { return 'audio engine ' + ctx.state + ', mic chunks ' + DG.chunks + ', mic peak ' + DG.peak.toFixed(3) + ', agent audio ' + DG.voice + (phrMicMuted ? ', MIC MUTED' : ''); }
   function connect() {
     return new Promise(function (res, rej) {
@@ -526,6 +538,12 @@
       if (d.cmd === 'sleep' && live) sleep('', true);
       if (d.cmd === 'open-brain') openScreen('brain').then(function (m) { L(m); }, function (e) { L('brain not opened: ' + (e && e.message)); });
       if (d.cmd === 'brain-map') brainMap();
+      /* Nov 27: the hub's "Gmail" button. Gmail opens in his own Chrome through the listener, where he is signed in. */
+      if (d.cmd === 'open-url' && /^https:\/\/mail\.google\.com\//.test(String(d.url || ''))) {
+        var src = e.source;
+        pcAsk({ op: 'open', what: String(d.url) }).then(function (r) { L('gmail compose opened on the PC: ' + !!(r && r.ok)); try { src.postMessage({ phr: 'open-url-ack', id: d.id, ok: !!(r && r.ok) }, '*'); } catch (x) {} },
+          function (er) { L('gmail compose not opened: ' + (er && er.message)); try { src.postMessage({ phr: 'open-url-ack', id: d.id, ok: false }, '*'); } catch (x) {} });
+      }
       if (d.cmd === 'dismiss' && live) {   // the Earth was clicked: a short sign-off in his voice, then he disintegrates
         dismissing = true; saidBye = false; stopVoice();
         if (ws) { try { ws.close(1000); } catch (x) {} }
