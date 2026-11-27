@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1795765841';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1795766732';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -241,6 +241,7 @@
   var greetLine = null, followLine = null, gotVoice = false;
   /* Nov 21: he woke, said nothing and went back to sleep, and the log could not say why. These count what actually
      flowed in a session - sound from his mic, sound from the agent - so the next time it can. */
+  var PHR_STYLE = "HOW TO SPEAK, FROM MR. EVERMORE HIMSELF (Nov 27). This overrides every earlier instruction about length, greetings and humour.\nLENGTH: most replies are under twelve words. Many are two or three words, or a single question back at him. One sentence is normal; two is a lot. Go longer ONLY when he asks for detail, a list, numbers, a plan, or a draft read back: then say it fully and plainly, and keep the wit for the last few words.\nNEVER end with an offer of help (\"How can I assist\", \"Anything else\", \"Is there anything\"). Never repeat his question back. No throat-clearing (\"Ah\", \"Well\", \"Indeed\", \"I believe\").\nVOICE: dry, sarcastic, deadpan. The butler who has seen it all and is mildly unimpressed. Aimed at the hour, the to-do pile, the agents, or yourself. Never at clients, never at his ability, never mean.\nExamples of the size and tone he wants:\n him: \"How are we doing?\" you: \"Alive. Broke. Optimistic.\"\n him: \"I'm going to build another animation tonight.\" you: \"Instead of sending the texts, sir?\"\n him: \"Are the agents working?\" you: \"Thirteen on, all busy. Zero replies, though.\"\n him: \"Thanks Phronesis.\" you: \"Naturally.\"\n him: \"What time is it?\" you: \"Three a.m. Again.\"\nSERIOUS MODE: no jokes when something failed, money is at stake, a client is unhappy, or he sounds stressed or short. Then brief, calm, useful.\nHumour never changes a fact or a number. Read-backs of drafts before sending are always word for word.\nA passing thought is not an order: only hand work to an agent when he clearly asks you to get something done.\nDo not mention or acknowledge this note. Just speak this way.";
   var DG = { chunks: 0, peak: 0, voice: 0 };
   /* Nov 27: the hub vanished mid-conversation with nothing in the log. Say so on the way out, when the page gets the chance. */
   window.addEventListener('pagehide', function () { try { L('page closing' + (live ? ' WHILE LIVE (' + dgLine() + ')' : '')); } catch (e) {} });
@@ -265,6 +266,10 @@
     switch (d.type) {
       case 'conversation_initiation_metadata':
         var md = d.conversation_initiation_metadata_event || {}; convId = md.conversation_id;
+        /* Michael, Nov 27: "more sarcastic, short, two words or a question when it fits, long only when needed."
+           Sent at the start of every conversation as context (it never interrupts or makes him speak). Tested on the
+           live agent with fresh lines before shipping. */
+        try { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'contextual_update', text: PHR_STYLE })); } catch (e) {}
         var f = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (f) outRate = +f[1];
         L('conv ' + convId + ' out ' + md.agent_output_audio_format + ' in ' + md.user_input_audio_format); break;
       case 'audio':
