@@ -16,7 +16,7 @@
   var EMBED = Q.get('embed') === '1' && window.parent !== window;
   if (EMBED) body.classList.add('embed');
   function toHub(o) { if (EMBED) try { window.parent.postMessage(Object.assign({ phr: 'live-state' }, o), '*'); } catch (e) {} }
-  var PHR_VER = '1795319818';   // set by the deploy script; the listener and the hub compare it with version.json
+  var PHR_VER = '1795765195';   // set by the deploy script; the listener and the hub compare it with version.json
   var log = window.PHR_LOG = [];
   function L(m) { log.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (log.length > 300) log.shift(); try { console.log('[phr] ' + m); } catch (e) {} try { lisSend({ log: m }); } catch (e) {} if (dbg && !dbg.hidden) dbg.textContent = log.slice(-30).join('\n'); }
   var dbg = null, micState = 'off', wsState = 'closed';
@@ -445,6 +445,8 @@
     live = true; dismissing = false; saidBye = false; stopWakeWord(); lisSend({ live: true }); toHub({ live: true }); body.classList.remove('dormant'); body.classList.add('live');
     setStatus('thinking', 'Waking'); say('');
     DG.chunks = 0; DG.peak = 0; DG.voice = 0;
+    /* Nov 27: he spoke and his face moved, but nothing came out of the room's speakers. Log where the sound goes. */
+    try { navigator.mediaDevices.enumerateDevices().then(function (ds) { var o = ds.filter(function (d) { return d.kind === 'audiooutput'; }); var d0 = o.filter(function (d) { return d.deviceId === 'default'; })[0] || o[0]; L('sound out: ' + (d0 ? (d0.label || '(name hidden)') : 'no speakers found') + ' (' + o.length + ' outputs' + (ctx.sinkId ? ', page set to ' + ctx.sinkId : '') + ')'); }, function () {}); } catch (e) {}
     try { ctx.resume().then(function () { if (ctx.state !== 'running') L('audio engine is ' + ctx.state + ' after waking'); }, function (e) { L('audio engine would not start: ' + (e && e.name)); }); } catch (e) {}
     setTimeout(function () { if (!live) return; if (ctx.state !== 'running' || !DG.chunks) { L('no sound flowing 2.5 s after waking (' + dgLine() + '): starting the audio engine again'); try { ctx.resume(); } catch (e) {} } }, 2500);
     var micP = startMic().catch(function (e) { L('mic ' + e.name); throw e; });
